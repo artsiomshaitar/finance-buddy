@@ -30,6 +30,9 @@ export const categories = sqliteTable("categories", {
 	parentId: text("parent_id").references(() => categories.id),
 	isSystem: integer("is_system", { mode: "boolean" }).default(false),
 	isIncome: integer("is_income", { mode: "boolean" }).default(false),
+	excludeFromSpending: integer("exclude_from_spending", {
+		mode: "boolean",
+	}).default(false),
 	budgetCents: integer("budget_cents"),
 });
 

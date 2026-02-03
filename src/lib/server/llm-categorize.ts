@@ -46,6 +46,7 @@ export async function suggestCategoriesWithLlm(
 		.join("\n");
 
 	const prompt = `You are a finance categorizer. Given a list of categories and uncategorized bank transactions, suggest a category and an optional match pattern for each transaction.
+Use category "transfer" for payments to credit cards, debt payoff, or account-to-account transfers (these are not consumption expenses).
 
 Categories (use the id):
 ${categoryLines}

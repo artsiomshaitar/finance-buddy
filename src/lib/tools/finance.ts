@@ -1,5 +1,15 @@
 import { toolDefinition } from "@tanstack/ai";
-import { and, between, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import {
+	and,
+	between,
+	desc,
+	eq,
+	gte,
+	inArray,
+	lte,
+	or,
+	sql,
+} from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { categories, transactions } from "@/db/schema";
@@ -197,6 +207,11 @@ export const queryTransactions = queryTransactionsDef.server(async (input) => {
 	return result;
 });
 
+const spendingCategoryFilter = or(
+	sql`${transactions.categoryId} is null`,
+	eq(categories.excludeFromSpending, false),
+);
+
 export const aggregateSpending = aggregateSpendingDef.server(async (input) => {
 	const i = input as z.infer<typeof aggregateSpendingInputSchema>;
 	const { start, end } = parseRelativeDates(i.startDate, i.endDate);
@@ -214,7 +229,14 @@ export const aggregateSpending = aggregateSpendingDef.server(async (input) => {
 			count: sql<number>`count(*)`,
 		})
 		.from(transactions)
-		.where(and(debitFilter, between(transactions.date, start, end)))
+		.leftJoin(categories, eq(transactions.categoryId, categories.id))
+		.where(
+			and(
+				debitFilter,
+				spendingCategoryFilter,
+				between(transactions.date, start, end),
+			),
+		)
 		.groupBy(groupCol);
 	const categoryNames =
 		i.groupBy === "category" ? await db.select().from(categories) : [];
@@ -231,14 +253,17 @@ export const aggregateSpending = aggregateSpendingDef.server(async (input) => {
 
 export const compareSpending = compareSpendingDef.server(async (input) => {
 	const i = input as z.infer<typeof compareSpendingInputSchema>;
+	const debitFilter = lte(transactions.amountCents, 0);
 	const [periodARows] = await db
 		.select({
 			total: sql<number>`coalesce(sum(${transactions.amountCents}), 0)`,
 		})
 		.from(transactions)
+		.leftJoin(categories, eq(transactions.categoryId, categories.id))
 		.where(
 			and(
-				lte(transactions.amountCents, 0),
+				debitFilter,
+				spendingCategoryFilter,
 				between(transactions.date, i.periodA.start, i.periodA.end),
 			),
 		);
@@ -247,9 +272,11 @@ export const compareSpending = compareSpendingDef.server(async (input) => {
 			total: sql<number>`coalesce(sum(${transactions.amountCents}), 0)`,
 		})
 		.from(transactions)
+		.leftJoin(categories, eq(transactions.categoryId, categories.id))
 		.where(
 			and(
-				lte(transactions.amountCents, 0),
+				debitFilter,
+				spendingCategoryFilter,
 				between(transactions.date, i.periodB.start, i.periodB.end),
 			),
 		);
@@ -270,6 +297,7 @@ export const compareSpending = compareSpendingDef.server(async (input) => {
 export const analyzePatterns = analyzePatternsDef.server(async (input) => {
 	const i = input as z.infer<typeof analyzePatternsInputSchema>;
 	const { start, end } = parseRelativeDates(i.startDate, i.endDate);
+	const debitFilter = lte(transactions.amountCents, 0);
 	const rows = await db
 		.select({
 			id: transactions.id,
@@ -278,9 +306,11 @@ export const analyzePatterns = analyzePatternsDef.server(async (input) => {
 			date: transactions.date,
 		})
 		.from(transactions)
+		.leftJoin(categories, eq(transactions.categoryId, categories.id))
 		.where(
 			and(
-				lte(transactions.amountCents, 0),
+				debitFilter,
+				spendingCategoryFilter,
 				between(transactions.date, start, end),
 			),
 		)

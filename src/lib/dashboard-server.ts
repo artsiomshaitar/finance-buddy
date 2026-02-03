@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { and, between, desc, eq, lte, sql } from "drizzle-orm";
+import { and, between, desc, eq, lte, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { accounts, categories, transactions } from "@/db/schema";
 import { seedCategoriesIfEmpty } from "@/lib/seed-categories";
@@ -22,15 +22,21 @@ export const getDashboardData = createServerFn({
 	const thisMonth = monthBounds(0);
 	const lastMonth = monthBounds(-1);
 	const debitFilter = lte(transactions.amountCents, 0);
+	const spendingCategoryFilter = or(
+		sql`${transactions.categoryId} is null`,
+		eq(categories.excludeFromSpending, false),
+	);
 
 	const [thisMonthRows] = await db
 		.select({
 			total: sql<number>`coalesce(sum(${transactions.amountCents}), 0)`,
 		})
 		.from(transactions)
+		.leftJoin(categories, eq(transactions.categoryId, categories.id))
 		.where(
 			and(
 				debitFilter,
+				spendingCategoryFilter,
 				between(transactions.date, thisMonth.start, thisMonth.end),
 			),
 		);
@@ -39,9 +45,11 @@ export const getDashboardData = createServerFn({
 			total: sql<number>`coalesce(sum(${transactions.amountCents}), 0)`,
 		})
 		.from(transactions)
+		.leftJoin(categories, eq(transactions.categoryId, categories.id))
 		.where(
 			and(
 				debitFilter,
+				spendingCategoryFilter,
 				between(transactions.date, lastMonth.start, lastMonth.end),
 			),
 		);
@@ -64,6 +72,7 @@ export const getDashboardData = createServerFn({
 		.where(
 			and(
 				debitFilter,
+				spendingCategoryFilter,
 				between(transactions.date, thisMonth.start, thisMonth.end),
 			),
 		)

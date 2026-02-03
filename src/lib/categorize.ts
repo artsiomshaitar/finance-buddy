@@ -65,6 +65,14 @@ export async function categorizeTransaction(
 	rules: CategoryRule[],
 	historicalData: TransactionRow[],
 ): Promise<CategorizationResult> {
+	const isDeeler = tx.name.includes("DEELER");
+
+	const logIfDeeler = (...args: any[]) => {
+		if (isDeeler) {
+			console.log(...args);
+		}
+	};
+
 	const sortedRules = rules
 		.filter((r) => r.isEnabled)
 		.sort((a, b) => b.priority - a.priority);
@@ -83,6 +91,9 @@ export async function categorizeTransaction(
 	}
 
 	const similar = findSimilarTransactions(tx.name, historicalData, 10);
+
+	logIfDeeler("similar", similar);
+
 	if (similar.length >= 3) {
 		const categoryVotes: Record<string, number> = {};
 		for (const t of similar) {

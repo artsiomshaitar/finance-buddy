@@ -17,7 +17,6 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress";
 import {
 	Select,
 	SelectContent,
@@ -37,17 +36,12 @@ import {
 } from "@/components/ui/table";
 import { CONFIDENCE_THRESHOLDS } from "@/lib/categorize";
 import { formatCents } from "@/lib/date-utils";
-import type { ParsedTransaction } from "@/lib/pdf-parser";
 import {
 	type CreateAccountInput,
 	createAccount,
 	getAccounts,
 } from "@/lib/server/accounts";
-import {
-	type CreateCategoryRuleInput,
-	createCategoryRule,
-	getCategories,
-} from "@/lib/server/categories";
+import { createCategoryRule, getCategories } from "@/lib/server/categories";
 import {
 	importTransactions,
 	type PreparedTransaction,
@@ -58,18 +52,17 @@ import { uploadFile } from "@/lib/server/upload-file";
 
 const MAX_PDF_FILES = 10;
 
-type UploadResult = {
-	bank: "bofa" | "capital_one" | "unknown" | "mixed";
-	transactions: ParsedTransaction[];
-	needsReview: ParsedTransaction[];
-};
-
 type AccountRow = Awaited<ReturnType<typeof getAccounts>>[number];
+
+type RuleMapEntry = {
+	categoryId: string;
+	matchPattern: string;
+	matchType: "contains" | "starts_with" | "exact";
+};
 
 function FinanceUploadPage() {
 	const [files, setFiles] = useState<File[]>([]);
 	const [loading, setLoading] = useState(false);
-	const [result, setResult] = useState<UploadResult | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [dragOver, setDragOver] = useState(false);
 	const [accountId, setAccountId] = useState<string | null>(null);
@@ -83,7 +76,6 @@ function FinanceUploadPage() {
 	const [preparedList, setPreparedList] = useState<
 		PreparedTransaction[] | null
 	>(null);
-	const [loadingPrepare, setLoadingPrepare] = useState(false);
 	const [importSuccess, setImportSuccess] = useState<{
 		imported: number;
 	} | null>(null);
@@ -94,20 +86,25 @@ function FinanceUploadPage() {
 	const [categoryOverrides, setCategoryOverrides] = useState<
 		Record<string, string>
 	>({});
+	const [ruleMap, setRuleMap] = useState<Record<string, RuleMapEntry>>({});
+	const [assignment, setAssignment] = useState<Record<string, string | null>>(
+		{},
+	);
 	const [createRuleFor, setCreateRuleFor] = useState<string | null>(null);
 	const [createRulePattern, setCreateRulePattern] = useState("");
 	const [createRuleCategoryId, setCreateRuleCategoryId] = useState("");
 	const [createRuleMatchType, setCreateRuleMatchType] = useState<
 		"contains" | "starts_with" | "exact"
 	>("contains");
-	const [creatingRule, setCreatingRule] = useState(false);
-	const [saveRuleFor, setSaveRuleFor] = useState<Record<string, boolean>>({});
+	const [saveRuleForRule, setSaveRuleForRule] = useState<
+		Record<string, boolean>
+	>({});
 	const fileInputId = useId();
 	const accountFormId = useId();
 
 	useEffect(() => {
-		if (result) getAccounts().then(setAccountsList);
-	}, [result]);
+		if (files.length > 0) getAccounts().then(setAccountsList);
+	}, [files.length]);
 
 	useEffect(() => {
 		if (preparedList?.length) getCategories().then(setCategoriesList);
@@ -115,14 +112,31 @@ function FinanceUploadPage() {
 
 	useEffect(() => {
 		if (!preparedList?.length) return;
-		const initial: Record<string, boolean> = {};
+		const key = (tx: PreparedTransaction) =>
+			`${tx.date}-${tx.description}-${tx.amountCents}`;
+		const map: Record<string, RuleMapEntry> = {};
+		const assign: Record<string, string | null> = {};
+		const saveRuleByRule: Record<string, boolean> = {};
 		for (const tx of preparedList) {
-			if (tx.source === "llm" && tx.suggestedMatchPattern != null) {
-				initial[`${tx.date}-${tx.description}-${tx.amountCents}`] =
-					tx.likelyRecurring ?? false;
+			const k = key(tx);
+			if (tx.source === "llm" && tx.suggestedMatchPattern?.trim()) {
+				const ruleId = tx.suggestedMatchPattern.trim();
+				if (!map[ruleId]) {
+					map[ruleId] = {
+						categoryId: tx.categoryId ?? "",
+						matchPattern: ruleId,
+						matchType: "contains",
+					};
+					saveRuleByRule[ruleId] = tx.likelyRecurring ?? false;
+				}
+				assign[k] = ruleId;
+			} else {
+				assign[k] = null;
 			}
 		}
-		if (Object.keys(initial).length) setSaveRuleFor(initial);
+		setRuleMap(map);
+		setAssignment(assign);
+		setSaveRuleForRule(saveRuleByRule);
 	}, [preparedList]);
 
 	const onDrop = useCallback((e: React.DragEvent) => {
@@ -140,7 +154,6 @@ function FinanceUploadPage() {
 			const combined = [...prev, ...dropped];
 			return combined.slice(0, MAX_PDF_FILES);
 		});
-		setResult(null);
 		setError(null);
 	}, []);
 
@@ -165,28 +178,33 @@ function FinanceUploadPage() {
 			const combined = [...prev, ...pdfs];
 			return combined.slice(0, MAX_PDF_FILES);
 		});
-		setResult(null);
 		setError(null);
 		e.target.value = "";
 	};
 
-	const upload = async () => {
-		if (files.length === 0) return;
+	const handleUpload = async () => {
+		if (files.length === 0 || !accountId) return;
 		setLoading(true);
 		setError(null);
-		setAccountId(null);
 		setPreparedList(null);
 		setImportSuccess(null);
 		setCategoryOverrides({});
+		setRuleMap({});
+		setAssignment({});
 		setCreateRuleFor(null);
-		setSaveRuleFor({});
+		setSaveRuleForRule({});
 		try {
 			const formData = new FormData();
 			for (const f of files) {
 				formData.append("files[]", f);
 			}
 			const data = await uploadFile({ data: formData });
-			setResult(data);
+			const payload: PrepareImportInput = {
+				accountId,
+				parsedTransactions: data.transactions,
+			};
+			const list = await prepareImport({ data: payload });
+			setPreparedList(list);
 		} catch (err) {
 			setError(err instanceof Error ? err.message : String(err));
 		} finally {
@@ -196,7 +214,6 @@ function FinanceUploadPage() {
 
 	const handleNewAccountClick = () => {
 		setShowNewAccountForm(true);
-		if (result) setNewAccountInstitution(result.bank);
 	};
 
 	const handleCreateAccount = async (e: React.FormEvent) => {
@@ -220,24 +237,6 @@ function FinanceUploadPage() {
 			setError(err instanceof Error ? err.message : String(err));
 		} finally {
 			setCreatingAccount(false);
-		}
-	};
-
-	const handleContinueToReview = async () => {
-		if (!result || !accountId) return;
-		setLoadingPrepare(true);
-		setError(null);
-		try {
-			const payload: PrepareImportInput = {
-				accountId,
-				parsedTransactions: result.transactions,
-			};
-			const list = await prepareImport({ data: payload });
-			setPreparedList(list);
-		} catch (err) {
-			setError(err instanceof Error ? err.message : String(err));
-		} finally {
-			setLoadingPrepare(false);
 		}
 	};
 
@@ -266,27 +265,35 @@ function FinanceUploadPage() {
 		setLoadingImport(true);
 		setError(null);
 		try {
-			for (const tx of preparedList) {
-				const key = txKey(tx);
-				if (!(saveRuleFor[key] ?? false) || !tx.suggestedMatchPattern?.trim())
-					continue;
-				const categoryId = categoryOverrides[key] ?? tx.categoryId ?? null;
-				if (!categoryId) continue;
+			const ruleIdsToCreate = Object.keys(ruleMap).filter(
+				(ruleId) => saveRuleForRule[ruleId] === true,
+			);
+			for (const ruleId of ruleIdsToCreate) {
+				const entry = ruleMap[ruleId];
+				if (!entry?.categoryId?.trim() || !entry.matchPattern.trim()) continue;
 				await createCategoryRule({
 					data: {
 						data: {
-							categoryId,
-							matchPattern: tx.suggestedMatchPattern.trim(),
+							categoryId: entry.categoryId,
+							matchPattern: entry.matchPattern,
 							matchField: "name",
-							matchType: "contains",
+							matchType: entry.matchType,
 						},
 					},
 				});
 			}
-			const merged = preparedList.map((tx) => ({
-				...tx,
-				categoryId: (categoryOverrides[txKey(tx)] ?? tx.categoryId) || null,
-			}));
+			const merged = preparedList.map((tx) => {
+				const key = txKey(tx);
+				const rid = assignment[key];
+				const effectiveCategory =
+					categoryOverrides[key] ??
+					(rid ? ruleMap[rid]?.categoryId : null) ??
+					tx.categoryId;
+				return {
+					...tx,
+					categoryId: effectiveCategory || null,
+				};
+			});
 			const result = await importTransactions({
 				data: {
 					accountId,
@@ -339,6 +346,7 @@ function FinanceUploadPage() {
 						<TableHeader>
 							<TableRow>
 								<TableHead className="font-mono text-xs">Date</TableHead>
+								<TableHead className="w-[90px]">Status</TableHead>
 								<TableHead className="min-w-[280px]">Description</TableHead>
 								<TableHead className="text-right">Amount</TableHead>
 								<TableHead>Category</TableHead>
@@ -351,12 +359,27 @@ function FinanceUploadPage() {
 						<TableBody>
 							{preparedList.map((tx) => {
 								const key = txKey(tx);
-								const rawValue = categoryOverrides[key] ?? tx.categoryId ?? "";
+								const ruleId = assignment[key];
+								const rule = ruleId ? ruleMap[ruleId] : null;
+								const rawValue =
+									categoryOverrides[key] ??
+									rule?.categoryId ??
+									tx.categoryId ??
+									"";
 								const selectValue = rawValue || NO_CATEGORY_VALUE;
 								return (
 									<TableRow key={tx.externalId ?? key}>
 										<TableCell className="font-mono text-xs whitespace-nowrap">
 											{tx.date}
+										</TableCell>
+										<TableCell className="w-[90px]">
+											{tx.confidence >= CONFIDENCE_THRESHOLDS.AUTO_ACCEPT &&
+											tx.source !== "ml" ? (
+												<Badge variant="secondary">Auto</Badge>
+											) : tx.source === "ml" ||
+												tx.confidence >= CONFIDENCE_THRESHOLDS.SUGGEST ? (
+												<Badge variant="outline">Suggested</Badge>
+											) : null}
 										</TableCell>
 										<TableCell className="min-w-[280px] font-mono text-xs whitespace-normal">
 											{tx.description}
@@ -390,16 +413,15 @@ function FinanceUploadPage() {
 											</Select>
 										</TableCell>
 										<TableCell className="text-center">
-											{tx.source === "llm" &&
-											tx.suggestedMatchPattern != null ? (
+											{ruleId != null ? (
 												<label className="flex items-center justify-center gap-1 text-xs cursor-pointer">
 													<input
 														type="checkbox"
-														checked={saveRuleFor[key] ?? false}
+														checked={saveRuleForRule[ruleId] ?? false}
 														onChange={() =>
-															setSaveRuleFor((prev) => ({
+															setSaveRuleForRule((prev) => ({
 																...prev,
-																[key]: !(prev[key] ?? false),
+																[ruleId]: !(prev[ruleId] ?? false),
 															}))
 														}
 														className="rounded border-input"
@@ -416,16 +438,42 @@ function FinanceUploadPage() {
 												size="sm"
 												className="text-xs"
 												onClick={() => {
+													const rid = assignment[key];
+													if (rid == null) {
+														const newRid = crypto.randomUUID();
+														const initialRule: RuleMapEntry = {
+															categoryId:
+																categoryOverrides[key] ?? tx.categoryId ?? "",
+															matchPattern:
+																tx.suggestedMatchPattern?.trim() ||
+																tx.description.slice(0, 40),
+															matchType: "contains",
+														};
+														setRuleMap((prev) => ({
+															...prev,
+															[newRid]: initialRule,
+														}));
+														setAssignment((prev) => ({
+															...prev,
+															[key]: newRid,
+														}));
+														setCreateRulePattern(initialRule.matchPattern);
+														setCreateRuleCategoryId(
+															initialRule.categoryId || "",
+														);
+														setCreateRuleMatchType(initialRule.matchType);
+													} else {
+														const r = ruleMap[rid];
+														if (r) {
+															setCreateRulePattern(r.matchPattern);
+															setCreateRuleCategoryId(r.categoryId || "");
+															setCreateRuleMatchType(r.matchType);
+														}
+													}
 													setCreateRuleFor(key);
-													setCreateRulePattern(
-														tx.suggestedMatchPattern?.trim() ||
-															tx.description.slice(0, 40),
-													);
-													setCreateRuleCategoryId(rawValue || "");
-													setCreateRuleMatchType("contains");
 												}}
 											>
-												Create rule
+												{ruleId != null ? "Edit rule" : "Create rule"}
 											</Button>
 										</TableCell>
 									</TableRow>
@@ -436,34 +484,26 @@ function FinanceUploadPage() {
 				</div>
 				{createRuleFor && (
 					<Card className="mt-4 p-4">
-						<Label className="text-xs font-medium">Create category rule</Label>
+						<Label className="text-xs font-medium">
+							{assignment[createRuleFor] ? "Edit" : "Create"} category rule
+						</Label>
 						<form
 							className="mt-2 space-y-2 max-w-md"
-							onSubmit={async (e) => {
+							onSubmit={(e) => {
 								e.preventDefault();
 								if (!createRulePattern.trim() || !createRuleCategoryId) return;
-								setCreatingRule(true);
-								setError(null);
-								try {
-									const payload: CreateCategoryRuleInput = {
-										categoryId: createRuleCategoryId,
-										matchPattern: createRulePattern.trim(),
-										matchField: "name",
-										matchType: createRuleMatchType,
-									};
-									await createCategoryRule({
-										data: { data: payload },
-									});
-									setCategoryOverrides((prev) => ({
+								const ruleId = assignment[createRuleFor];
+								if (ruleId) {
+									setRuleMap((prev) => ({
 										...prev,
-										[createRuleFor]: createRuleCategoryId,
+										[ruleId]: {
+											categoryId: createRuleCategoryId,
+											matchPattern: createRulePattern.trim(),
+											matchType: createRuleMatchType,
+										},
 									}));
-									setCreateRuleFor(null);
-								} catch (err) {
-									setError(err instanceof Error ? err.message : String(err));
-								} finally {
-									setCreatingRule(false);
 								}
+								setCreateRuleFor(null);
 							}}
 						>
 							<div>
@@ -535,12 +575,8 @@ function FinanceUploadPage() {
 								</Select>
 							</div>
 							<div className="flex gap-2 pt-2">
-								<Button type="submit" size="sm" disabled={creatingRule}>
-									{creatingRule ? (
-										<CircleNotchIcon className="h-4 w-4 animate-spin" />
-									) : (
-										"Create rule"
-									)}
+								<Button type="submit" size="sm">
+									{assignment[createRuleFor] ? "Save" : "Create"} rule
 								</Button>
 								<Button
 									type="button"
@@ -629,7 +665,6 @@ function FinanceUploadPage() {
 												className="shrink-0"
 												onClick={() => {
 													setFiles((prev) => prev.filter((_, j) => j !== i));
-													setResult(null);
 												}}
 											>
 												Remove
@@ -642,14 +677,7 @@ function FinanceUploadPage() {
 										Max {MAX_PDF_FILES} files
 									</p>
 								)}
-								<Button
-									variant="ghost"
-									size="sm"
-									onClick={() => {
-										setFiles([]);
-										setResult(null);
-									}}
-								>
+								<Button variant="ghost" size="sm" onClick={() => setFiles([])}>
 									Clear all
 								</Button>
 							</div>
@@ -680,67 +708,8 @@ function FinanceUploadPage() {
 					</section>
 					{error && <p className="text-sm text-destructive">{error}</p>}
 					{files.length > 0 && (
-						<Button onClick={upload} disabled={loading} className="w-full">
-							{loading ? (
-								<>
-									<CircleNotchIcon className="h-4 w-4 mr-2 animate-spin" />
-									Parsing…
-								</>
-							) : (
-								"Parse PDF"
-							)}
-						</Button>
-					)}
-					{loading && <Progress value={50} className="w-full" />}
-					{result && (
 						<div className="space-y-4 pt-4 border-t">
-							<div className="flex items-center gap-2">
-								<Badge>{result.bank}</Badge>
-								<span className="text-sm text-muted-foreground">
-									{result.transactions.length} transactions
-									{result.needsReview.length > 0 &&
-										`, ${result.needsReview.length} need review`}
-								</span>
-							</div>
-							<div className="max-h-60 overflow-y-auto rounded border">
-								<Table>
-									<TableHeader>
-										<TableRow>
-											<TableHead>Date</TableHead>
-											<TableHead>Description</TableHead>
-											<TableHead className="text-right">Amount</TableHead>
-										</TableRow>
-									</TableHeader>
-									<TableBody>
-										{result.transactions.slice(0, 50).map((tx, i) => (
-											<TableRow key={tx.externalId ?? i}>
-												<TableCell className="font-mono text-xs">
-													{tx.date}
-												</TableCell>
-												<TableCell className="truncate max-w-[200px]">
-													{tx.description}
-												</TableCell>
-												<TableCell className="text-right tabular-nums">
-													{formatCents(
-														tx.type === "credit"
-															? tx.amountCents
-															: -tx.amountCents,
-													)}
-												</TableCell>
-											</TableRow>
-										))}
-									</TableBody>
-								</Table>
-								{result.transactions.length > 50 && (
-									<p className="p-2 text-muted-foreground text-xs">
-										… and {result.transactions.length - 50} more
-									</p>
-								)}
-							</div>
-							<section
-								className="space-y-3 border-t pt-4"
-								aria-label="Assign to account"
-							>
+							<section className="space-y-3" aria-label="Assign to account">
 								<Label>Account</Label>
 								{!showNewAccountForm ? (
 									<div className="flex flex-wrap items-center gap-2">
@@ -874,23 +843,21 @@ function FinanceUploadPage() {
 									</form>
 								)}
 							</section>
-							{accountId && result && !showNewAccountForm && (
-								<div className="border-t pt-4">
-									<Button
-										onClick={handleContinueToReview}
-										disabled={loadingPrepare}
-										className="w-full"
-									>
-										{loadingPrepare ? (
-											<>
-												<CircleNotchIcon className="h-4 w-4 mr-2 animate-spin" />
-												Categorizing…
-											</>
-										) : (
-											"Continue to review"
-										)}
-									</Button>
-								</div>
+							{accountId && !showNewAccountForm && (
+								<Button
+									onClick={handleUpload}
+									disabled={loading}
+									className="w-full"
+								>
+									{loading ? (
+										<>
+											<CircleNotchIcon className="h-4 w-4 mr-2 animate-spin" />
+											Uploading…
+										</>
+									) : (
+										"Upload"
+									)}
+								</Button>
 							)}
 						</div>
 					)}

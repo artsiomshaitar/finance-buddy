@@ -85,9 +85,11 @@ export const prepareImport = createServerFn({ method: "POST" })
 			});
 		}
 
-		// const uncategorized = result.filter(
-		// 	(t) => t.source === "manual" && t.categoryId == null,
-		// );
+		const uncategorized = result.filter(
+			(t) => t.source === "manual" && t.categoryId == null,
+		);
+		const deeler = uncategorized.find((t) => t.description.includes("DEELER"));
+		console.log(JSON.stringify(deeler, null, 2));
 		// if (uncategorized.length > 0 && process.env.OPENAI_API_KEY) {
 		// 	const categoriesFromDb = await db
 		// 		.select({ id: categories.id, name: categories.name })
