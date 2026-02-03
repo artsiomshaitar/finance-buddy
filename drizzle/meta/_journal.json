@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1770138975654,
+      "tag": "0000_famous_toad_men",
+      "breakpoints": true
+    }
+  ]
+}

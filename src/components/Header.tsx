@@ -1,48 +1,29 @@
-import { Link } from "@tanstack/react-router";
-
-import TanChatAIAssistant from "./demo-AIAssistant.tsx";
-
-import { useState } from "react";
 import {
-	ChefHat,
-	ChevronDown,
-	ChevronRight,
-	Database,
-	Home,
-	ImageIcon,
-	Menu,
-	MessagesSquare,
-	Network,
-	SquareFunction,
-	StickyNote,
-	Store,
-	X,
-} from "lucide-react";
+	ChartPieIcon,
+	ChatCircleIcon,
+	DatabaseIcon,
+	ListIcon,
+	XIcon,
+} from "@phosphor-icons/react";
+import { Link } from "@tanstack/react-router";
+import { useState } from "react";
 
 export default function Header() {
 	const [isOpen, setIsOpen] = useState(false);
-	const [groupedExpanded, setGroupedExpanded] = useState<
-		Record<string, boolean>
-	>({});
 
 	return (
 		<>
 			<header className="p-4 flex items-center bg-gray-800 text-white shadow-lg">
 				<button
+					type="button"
 					onClick={() => setIsOpen(true)}
 					className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
 					aria-label="Open menu"
 				>
-					<Menu size={24} />
+					<ListIcon size={24} />
 				</button>
-				<h1 className="ml-4 text-xl font-semibold">
-					<Link to="/">
-						<img
-							src="/tanstack-word-logo-white.svg"
-							alt="TanStack Logo"
-							className="h-10"
-						/>
-					</Link>
+				<h1 className="ml-4 text-xl font-semibold font-mono">
+					<Link to="/dashboard">finance-cli</Link>
 				</h1>
 			</header>
 
@@ -54,17 +35,18 @@ export default function Header() {
 				<div className="flex items-center justify-between p-4 border-b border-gray-700">
 					<h2 className="text-xl font-bold">Navigation</h2>
 					<button
+						type="button"
 						onClick={() => setIsOpen(false)}
 						className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
 						aria-label="Close menu"
 					>
-						<X size={24} />
+						<XIcon size={24} />
 					</button>
 				</div>
 
-				<nav className="flex-1 p-4 overflow-y-auto">
+				<nav className="flex-1 p-4 overflow-y-auto font-mono">
 					<Link
-						to="/"
+						to="/dashboard"
 						onClick={() => setIsOpen(false)}
 						className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
 						activeProps={{
@@ -72,14 +54,11 @@ export default function Header() {
 								"flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2",
 						}}
 					>
-						<Home size={20} />
-						<span className="font-medium">Home</span>
+						<ChartPieIcon size={20} />
+						<span className="font-medium">Dashboard</span>
 					</Link>
-
-					{/* Demo Links Start */}
-
 					<Link
-						to="/demo/start/server-funcs"
+						to="/finance/chat"
 						onClick={() => setIsOpen(false)}
 						className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
 						activeProps={{
@@ -87,12 +66,11 @@ export default function Header() {
 								"flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2",
 						}}
 					>
-						<SquareFunction size={20} />
-						<span className="font-medium">Start - Server Functions</span>
+						<ChatCircleIcon size={20} />
+						<span className="font-medium">Finance Chat</span>
 					</Link>
-
 					<Link
-						to="/demo/start/api-request"
+						to="/finance/upload"
 						onClick={() => setIsOpen(false)}
 						className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
 						activeProps={{
@@ -100,166 +78,10 @@ export default function Header() {
 								"flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2",
 						}}
 					>
-						<Network size={20} />
-						<span className="font-medium">Start - API Request</span>
+						<DatabaseIcon size={20} />
+						<span className="font-medium">Upload Statement</span>
 					</Link>
-
-					<div className="flex flex-row justify-between">
-						<Link
-							to="/demo/start/ssr"
-							onClick={() => setIsOpen(false)}
-							className="flex-1 flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
-							activeProps={{
-								className:
-									"flex-1 flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2",
-							}}
-						>
-							<StickyNote size={20} />
-							<span className="font-medium">Start - SSR Demos</span>
-						</Link>
-						<button
-							className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
-							onClick={() =>
-								setGroupedExpanded((prev) => ({
-									...prev,
-									StartSSRDemo: !prev.StartSSRDemo,
-								}))
-							}
-						>
-							{groupedExpanded.StartSSRDemo ? (
-								<ChevronDown size={20} />
-							) : (
-								<ChevronRight size={20} />
-							)}
-						</button>
-					</div>
-					{groupedExpanded.StartSSRDemo && (
-						<div className="flex flex-col ml-4">
-							<Link
-								to="/demo/start/ssr/spa-mode"
-								onClick={() => setIsOpen(false)}
-								className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
-								activeProps={{
-									className:
-										"flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2",
-								}}
-							>
-								<StickyNote size={20} />
-								<span className="font-medium">SPA Mode</span>
-							</Link>
-
-							<Link
-								to="/demo/start/ssr/full-ssr"
-								onClick={() => setIsOpen(false)}
-								className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
-								activeProps={{
-									className:
-										"flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2",
-								}}
-							>
-								<StickyNote size={20} />
-								<span className="font-medium">Full SSR</span>
-							</Link>
-
-							<Link
-								to="/demo/start/ssr/data-only"
-								onClick={() => setIsOpen(false)}
-								className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
-								activeProps={{
-									className:
-										"flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2",
-								}}
-							>
-								<StickyNote size={20} />
-								<span className="font-medium">Data Only</span>
-							</Link>
-						</div>
-					)}
-
-					<Link
-						to="/demo/drizzle"
-						onClick={() => setIsOpen(false)}
-						className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
-						activeProps={{
-							className:
-								"flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2",
-						}}
-					>
-						<Database size={20} />
-						<span className="font-medium">Drizzle</span>
-					</Link>
-
-					<Link
-						to="/demo/ai-chat"
-						onClick={() => setIsOpen(false)}
-						className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
-						activeProps={{
-							className:
-								"flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2",
-						}}
-					>
-						<MessagesSquare size={20} />
-						<span className="font-medium">Chat</span>
-					</Link>
-
-					<Link
-						to="/demo/ai-image"
-						onClick={() => setIsOpen(false)}
-						className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
-						activeProps={{
-							className:
-								"flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2",
-						}}
-					>
-						<ImageIcon size={20} />
-						<span className="font-medium">Generate Image</span>
-					</Link>
-
-					<Link
-						to="/demo/ai-structured"
-						onClick={() => setIsOpen(false)}
-						className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
-						activeProps={{
-							className:
-								"flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2",
-						}}
-					>
-						<ChefHat size={20} />
-						<span className="font-medium">Structured Output</span>
-					</Link>
-
-					<Link
-						to="/demo/tanstack-query"
-						onClick={() => setIsOpen(false)}
-						className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
-						activeProps={{
-							className:
-								"flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2",
-						}}
-					>
-						<Network size={20} />
-						<span className="font-medium">TanStack Query</span>
-					</Link>
-
-					<Link
-						to="/demo/store"
-						onClick={() => setIsOpen(false)}
-						className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
-						activeProps={{
-							className:
-								"flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2",
-						}}
-					>
-						<Store size={20} />
-						<span className="font-medium">Store</span>
-					</Link>
-
-					{/* Demo Links End */}
 				</nav>
-
-				<div className="p-4 border-t border-gray-700 bg-gray-800 flex flex-col gap-2">
-					<TanChatAIAssistant />
-				</div>
 			</aside>
 		</>
 	);

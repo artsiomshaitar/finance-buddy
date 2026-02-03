@@ -1,12 +1,15 @@
-import { useEffect, useRef, useState } from "react";
+import {
+	CaretRightIcon,
+	PaperPlaneTiltIcon,
+	RobotIcon,
+	XIcon,
+} from "@phosphor-icons/react";
 import { useStore } from "@tanstack/react-store";
 import { Store } from "@tanstack/store";
-
-import { Send, X, ChevronRight, BotIcon } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { Streamdown } from "streamdown";
-
-import { useGuitarRecommendationChat } from "@/lib/demo-ai-hook";
 import type { ChatMessages } from "@/lib/demo-ai-hook";
+import { useGuitarRecommendationChat } from "@/lib/demo-ai-hook";
 
 import GuitarRecommendation from "./demo-GuitarRecommendation";
 
@@ -90,10 +93,10 @@ export default function AIAssistant() {
 				className="w-full flex items-center justify-between px-4 py-2.5 rounded-lg bg-linear-to-r from-green-700 to-green-900 text-white hover:opacity-90 transition-opacity"
 			>
 				<div className="flex items-center gap-2">
-					<BotIcon size={24} />
+					<RobotIcon size={24} />
 					<span className="font-medium">AI Assistant</span>
 				</div>
-				<ChevronRight className="w-4 h-4" />
+				<CaretRightIcon className="w-4 h-4" />
 			</button>
 
 			{isOpen && (
@@ -104,7 +107,7 @@ export default function AIAssistant() {
 							onClick={() => showAIAssistant.setState((state) => !state)}
 							className="text-gray-400 hover:text-white transition-colors"
 						>
-							<X className="w-4 h-4" />
+							<XIcon className="w-4 h-4" />
 						</button>
 					</div>
 
@@ -147,7 +150,7 @@ export default function AIAssistant() {
 									disabled={!input.trim()}
 									className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-orange-500 hover:text-orange-400 disabled:text-gray-500 transition-colors focus:outline-none"
 								>
-									<Send className="w-4 h-4" />
+									<PaperPlaneTiltIcon className="w-4 h-4" />
 								</button>
 							</div>
 						</form>
