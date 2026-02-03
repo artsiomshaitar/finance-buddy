@@ -28,10 +28,7 @@ export const Route = createFileRoute("/api/chat")({
 							{ status: 500, headers: { "Content-Type": "application/json" } },
 						);
 					}
-					const body = (await request.json()) as {
-						messages: Array<{ role: string; content?: string }>;
-						sessionId?: string;
-					};
+					const body = await request.json();
 					const { messages } = body;
 					const stream = chat({
 						adapter: openaiText("gpt-4o"),

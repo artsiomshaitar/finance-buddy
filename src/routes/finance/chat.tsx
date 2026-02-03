@@ -15,6 +15,10 @@ import {
 	type FinanceChatMessages,
 	useFinanceChat,
 } from "@/lib/finance-chat-hook";
+import {
+	getToolCallError,
+	parseToolCallArguments,
+} from "@/lib/tool-call-utils";
 
 function getTextContent(
 	parts: FinanceChatMessages[number]["parts"],
@@ -27,12 +31,12 @@ function getTextContent(
 
 function Messages({ messages }: { messages: FinanceChatMessages }) {
 	const containerRef = useRef<HTMLDivElement>(null);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: scroll to bottom when messages change
 	useEffect(() => {
 		containerRef.current?.scrollTo({
 			top: containerRef.current.scrollHeight,
 		});
-		// biome-ignore lint/correctness/useExhaustiveDependencies: scroll when messages change
-	}, [messages]);
+	}, [messages.length]);
 
 	return (
 		<div
@@ -63,9 +67,11 @@ function Messages({ messages }: { messages: FinanceChatMessages }) {
 									);
 								}
 								if (part.type === "tool-call") {
-									const pending = !part.output && !part.error;
-									const done = !!part.output;
-									const failed = !!part.error;
+									const partError = getToolCallError(part.output);
+									const pending = !part.output && !partError;
+									const done = !!part.output && !partError;
+									const failed = !!partError;
+									const argsObj = parseToolCallArguments(part.arguments);
 									return (
 										<Card
 											key={part.id ?? `tool-${idx}`}
@@ -87,12 +93,12 @@ function Messages({ messages }: { messages: FinanceChatMessages }) {
 													)}
 													<span className="font-medium">{part.name}</span>
 												</div>
-												{part.args && Object.keys(part.args).length > 0 && (
+												{Object.keys(argsObj).length > 0 && (
 													<pre className="mt-2 text-xs overflow-x-auto bg-muted/50 p-2 rounded">
-														{JSON.stringify(part.args, null, 2)}
+														{JSON.stringify(argsObj, null, 2)}
 													</pre>
 												)}
-												{part.output != null && (
+												{part.output != null && !partError && (
 													<details className="mt-2">
 														<summary className="cursor-pointer text-xs text-muted-foreground">
 															View result
@@ -104,9 +110,9 @@ function Messages({ messages }: { messages: FinanceChatMessages }) {
 														</pre>
 													</details>
 												)}
-												{part.error && (
+												{partError && (
 													<p className="mt-2 text-xs text-destructive">
-														{String(part.error)}
+														{String(partError)}
 													</p>
 												)}
 											</CardContent>

@@ -6,14 +6,17 @@ export interface ParsedTransaction {
 	type: "debit" | "credit";
 }
 
-function normalizeDate(mmSlashDd: string): string {
-	const [mm, dd] = mmSlashDd.split("/");
-	const y = new Date().getFullYear();
-	return `${y}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}`;
+function normalizeDateFromGroups(mm: string, dd: string, yy?: string): string {
+	const y = yy ? 2000 + parseInt(yy, 10) : new Date().getFullYear();
+	return `${y}-${mm}-${dd}`;
 }
 
 function generateTransactionId(match: RegExpExecArray): string {
-	const input = `${match[1]}-${match[3]}-${match[2].slice(0, 20)}`;
+	const mm = match[1];
+	const dd = match[2];
+	const desc = match[4];
+	const amt = match[5];
+	const input = `${mm}-${dd}-${amt}-${desc.slice(0, 20)}`;
 	return Buffer.from(input, "utf-8")
 		.toString("base64")
 		.slice(0, 16)
@@ -33,57 +36,126 @@ export function detectBank(text: string): "bofa" | "capital_one" | "unknown" {
 	return "unknown";
 }
 
+function generateTransactionIdSingle(match: RegExpExecArray): string {
+	const mm = match[1];
+	const dd = match[2];
+	const desc = match[4];
+	const amt = match[5];
+	const input = `${mm}-${dd}-${amt}-${desc.slice(0, 20)}`;
+	return Buffer.from(input, "utf-8")
+		.toString("base64")
+		.slice(0, 16)
+		.replace(/[+/=]/g, "x");
+}
+
+const BoA_TWO_AMOUNT_RE =
+	/(0[1-9]|1[0-2])\/(0[1-9]|[12]\d|3[01])(?:\/(\d{2}))?\s+(.+?)\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})/g;
+const BoA_SINGLE_AMOUNT_RE =
+	/(0[1-9]|1[0-2])\/(0[1-9]|[12]\d|3[01])(?:\/(\d{2}))?\s+(.+?)\s+(-?[\d,]+\.\d{2})(?=\s*\n|\s*$)/gm;
+
 function parseBoATransactions(text: string): ParsedTransaction[] {
 	const transactions: ParsedTransaction[] = [];
-	const txRegex = /(\d{2}\/\d{2})\s+(.+?)\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})/g;
-	let match = txRegex.exec(text);
+	let match = BoA_TWO_AMOUNT_RE.exec(text);
 	while (match !== null) {
+		const yy = match[3];
 		transactions.push({
-			date: normalizeDate(match[1]),
-			description: match[2].trim(),
-			amountCents: Math.round(parseFloat(match[3].replace(/,/g, "")) * 100),
+			date: normalizeDateFromGroups(match[1], match[2], yy),
+			description: match[4].trim(),
+			amountCents: Math.round(parseFloat(match[5].replace(/,/g, "")) * 100),
 			externalId: generateTransactionId(match),
 			type: detectTransactionType(text, match.index),
 		});
-		match = txRegex.exec(text);
+		match = BoA_TWO_AMOUNT_RE.exec(text);
+	}
+	const seen = new Set(transactions.map((t) => `${t.date}:${t.description}`));
+	match = BoA_SINGLE_AMOUNT_RE.exec(text);
+	while (match !== null) {
+		const yy = match[3];
+		const key = `${normalizeDateFromGroups(match[1], match[2], yy)}:${match[4].trim()}`;
+		if (!seen.has(key)) {
+			seen.add(key);
+			const amountStr = match[5].replace(/,/g, "");
+			const amountCents = Math.round(parseFloat(amountStr) * 100);
+			const isCredit = amountStr.startsWith("-");
+			transactions.push({
+				date: normalizeDateFromGroups(match[1], match[2], yy),
+				description: match[4].trim(),
+				amountCents: Math.abs(amountCents),
+				externalId: generateTransactionIdSingle(match),
+				type: isCredit ? "credit" : "debit",
+			});
+		}
+		match = BoA_SINGLE_AMOUNT_RE.exec(text);
 	}
 	return transactions;
 }
+
+const CAPITAL_ONE_TX_RE =
+	/(0[1-9]|1[0-2])\/(0[1-9]|[12]\d|3[01])(?:\/(\d{2}))?\s+(.+?)\s+([\d,]+\.\d{2})/g;
 
 function parseCapitalOneTransactions(text: string): ParsedTransaction[] {
 	const transactions: ParsedTransaction[] = [];
-	const txRegex = /(\d{2}\/\d{2})\s+(.+?)\s+([\d,]+\.\d{2})/g;
-	let match = txRegex.exec(text);
+	let match = CAPITAL_ONE_TX_RE.exec(text);
 	while (match !== null) {
+		const yy = match[3];
 		transactions.push({
-			date: normalizeDate(match[1]),
-			description: match[2].trim(),
-			amountCents: Math.round(parseFloat(match[3].replace(/,/g, "")) * 100),
-			externalId: generateTransactionId(match),
+			date: normalizeDateFromGroups(match[1], match[2], yy),
+			description: match[4].trim(),
+			amountCents: Math.round(parseFloat(match[5].replace(/,/g, "")) * 100),
+			externalId: generateTransactionIdSingle(match),
 			type: "debit",
 		});
-		match = txRegex.exec(text);
+		match = CAPITAL_ONE_TX_RE.exec(text);
 	}
 	return transactions;
 }
 
-export async function parseStatement(pdfBuffer: ArrayBuffer): Promise<{
+const Y_THRESHOLD = 5;
+
+type TextItemLike = { str: string; transform: number[]; hasEOL?: boolean };
+
+function extractPageTextInReadingOrder(content: {
+	items: Array<unknown>;
+}): string {
+	const items = content.items.filter((item: unknown): item is TextItemLike => {
+		const t = item as TextItemLike;
+		return typeof t.str === "string" && Array.isArray(t.transform);
+	});
+	items.sort((a, b) => {
+		const aY = a.transform[5] ?? 0;
+		const bY = b.transform[5] ?? 0;
+		if (Math.abs(aY - bY) > Y_THRESHOLD) return bY - aY;
+		return (a.transform[4] ?? 0) - (b.transform[4] ?? 0);
+	});
+	let pageText = "";
+	for (let i = 0; i < items.length; i++) {
+		pageText += items[i].str;
+		if (i < items.length - 1) {
+			pageText += items[i].hasEOL ? "\n" : " ";
+		}
+	}
+	return pageText;
+}
+
+export async function parseStatement(
+	pdfBuffer: ArrayBuffer,
+	options?: { includeRawText?: boolean },
+): Promise<{
 	bank: "bofa" | "capital_one" | "unknown";
 	transactions: ParsedTransaction[];
 	needsReview: ParsedTransaction[];
+	rawText?: string;
 }> {
 	const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
 	const doc = await pdfjsLib.getDocument({ data: new Uint8Array(pdfBuffer) })
 		.promise;
-	let fullText = "";
+	const pageTexts: string[] = [];
 	for (let i = 1; i <= doc.numPages; i++) {
 		const page = await doc.getPage(i);
 		const content = await page.getTextContent();
-		fullText +=
-			content.items
-				.map((item: { str?: string }) => (item as { str: string }).str ?? "")
-				.join(" ") + "\n";
+		pageTexts.push(extractPageTextInReadingOrder(content));
 	}
+	const fullText = pageTexts.join("\n");
 	const bank = detectBank(fullText);
 	const transactions =
 		bank === "bofa"
@@ -92,11 +164,16 @@ export async function parseStatement(pdfBuffer: ArrayBuffer): Promise<{
 				? parseCapitalOneTransactions(fullText)
 				: [];
 	const needsReview = transactions.filter((t) => !t.externalId);
-	return {
-		bank,
-		transactions,
-		needsReview,
-	};
+	const result: {
+		bank: "bofa" | "capital_one" | "unknown";
+		transactions: ParsedTransaction[];
+		needsReview: ParsedTransaction[];
+		rawText?: string;
+	} = { bank, transactions, needsReview };
+	if (options?.includeRawText) {
+		result.rawText = fullText.slice(0, 3000);
+	}
+	return result;
 }
 
 export function validateExtraction(

@@ -32,7 +32,14 @@ export const Route = createFileRoute("/api/upload")({
 				}
 				try {
 					const buffer = await file.arrayBuffer();
-					const result = await parseStatement(buffer);
+					const debugParam =
+						new URL(request.url).searchParams.get("debug") ??
+						formData.get("debug");
+					const debug =
+						debugParam === "1" || String(debugParam).toLowerCase() === "true";
+					const result = await parseStatement(buffer, {
+						includeRawText: debug,
+					});
 					return Response.json(result);
 				} catch (err) {
 					return new Response(
