@@ -5,6 +5,7 @@ import {
 } from "@phosphor-icons/react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useId, useState } from "react";
+import { uploadFile } from "@/lib/server/upload-file";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -82,15 +83,9 @@ function FinanceUploadPage() {
 		try {
 			const formData = new FormData();
 			formData.set("file", file);
-			const res = await fetch("/api/upload", {
-				method: "POST",
-				body: formData,
-			});
-			if (!res.ok) {
-				const data = await res.json().catch(() => ({}));
-				throw new Error(data.error ?? res.statusText);
-			}
-			const data: UploadResult = await res.json();
+
+			// Direct server function call instead of fetch
+			const data = await uploadFile({ data: formData });
 			setResult(data);
 		} catch (err) {
 			setError(err instanceof Error ? err.message : String(err));

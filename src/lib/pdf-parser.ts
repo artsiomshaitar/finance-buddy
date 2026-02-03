@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 export interface ParsedTransaction {
 	date: string;
 	description: string;
@@ -11,16 +13,17 @@ function normalizeDateFromGroups(mm: string, dd: string, yy?: string): string {
 	return `${y}-${mm}-${dd}`;
 }
 
+function hashTransactionId(input: string): string {
+	return createHash("sha256").update(input, "utf8").digest("hex").slice(0, 24);
+}
+
 function generateTransactionId(match: RegExpExecArray): string {
 	const mm = match[1];
 	const dd = match[2];
 	const desc = match[4];
 	const amt = match[5];
-	const input = `${mm}-${dd}-${amt}-${desc.slice(0, 20)}`;
-	return Buffer.from(input, "utf-8")
-		.toString("base64")
-		.slice(0, 16)
-		.replace(/[+/=]/g, "x");
+	const input = `${mm}-${dd}-${amt}-${desc.trim()}`;
+	return hashTransactionId(input);
 }
 
 function detectTransactionType(
@@ -41,11 +44,8 @@ function generateTransactionIdSingle(match: RegExpExecArray): string {
 	const dd = match[2];
 	const desc = match[4];
 	const amt = match[5];
-	const input = `${mm}-${dd}-${amt}-${desc.slice(0, 20)}`;
-	return Buffer.from(input, "utf-8")
-		.toString("base64")
-		.slice(0, 16)
-		.replace(/[+/=]/g, "x");
+	const input = `${mm}-${dd}-${amt}-${desc.trim()}`;
+	return hashTransactionId(input);
 }
 
 const BoA_TWO_AMOUNT_RE =
