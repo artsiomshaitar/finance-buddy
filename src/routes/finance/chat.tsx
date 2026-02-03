@@ -77,7 +77,7 @@ function Messages({ messages }: { messages: FinanceChatMessages }) {
 														<CircleNotchIcon className="h-4 w-4 animate-spin" />
 													)}
 													{done && (
-														<CheckCircleIcon className="h-4 w-4 text-green-600" />
+														<CheckCircleIcon className="h-4 w-4 text-chart-3" />
 													)}
 													{failed && (
 														<WarningCircleIcon className="h-4 w-4 text-destructive" />

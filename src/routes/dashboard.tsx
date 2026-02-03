@@ -41,18 +41,6 @@ function DashboardPage() {
 
 	return (
 		<div className="min-h-screen bg-background font-mono p-6">
-			<header className="flex items-center justify-between mb-8 border-b pb-4">
-				<h1 className="text-xl font-semibold tracking-tight">
-					finance-cli v2.0
-				</h1>
-				<div className="text-sm text-muted-foreground">
-					{new Date().toLocaleString("en-US", {
-						month: "short",
-						year: "numeric",
-					})}
-				</div>
-			</header>
-
 			<div className="grid gap-4 md:grid-cols-3 mb-8">
 				<Card>
 					<CardHeader className="pb-2">
@@ -228,7 +216,7 @@ function DashboardPage() {
 									</TableCell>
 									<TableCell
 										className={`text-right tabular-nums ${
-											tx.amountCents < 0 ? "text-destructive" : "text-green-600"
+											tx.amountCents < 0 ? "text-destructive" : "text-chart-3"
 										}`}
 									>
 										{formatCents(tx.amountCents)}

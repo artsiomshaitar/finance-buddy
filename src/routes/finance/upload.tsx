@@ -15,6 +15,14 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@/components/ui/table";
 import { formatCents } from "@/lib/date-utils";
 import type { ParsedTransaction } from "@/lib/pdf-parser";
 
@@ -177,32 +185,34 @@ function FinanceUploadPage() {
 								</span>
 							</div>
 							<div className="max-h-60 overflow-y-auto rounded border">
-								<table className="w-full text-xs">
-									<thead className="bg-muted/50 sticky top-0">
-										<tr>
-											<th className="text-left p-2">Date</th>
-											<th className="text-left p-2">Description</th>
-											<th className="text-right p-2">Amount</th>
-										</tr>
-									</thead>
-									<tbody>
+								<Table>
+									<TableHeader>
+										<TableRow>
+											<TableHead>Date</TableHead>
+											<TableHead>Description</TableHead>
+											<TableHead className="text-right">Amount</TableHead>
+										</TableRow>
+									</TableHeader>
+									<TableBody>
 										{result.transactions.slice(0, 50).map((tx, i) => (
-											<tr key={tx.externalId ?? i} className="border-t">
-												<td className="p-2">{tx.date}</td>
-												<td className="p-2 truncate max-w-[200px]">
+											<TableRow key={tx.externalId ?? i}>
+												<TableCell className="font-mono text-xs">
+													{tx.date}
+												</TableCell>
+												<TableCell className="truncate max-w-[200px]">
 													{tx.description}
-												</td>
-												<td className="p-2 text-right tabular-nums">
+												</TableCell>
+												<TableCell className="text-right tabular-nums">
 													{formatCents(
 														tx.type === "credit"
 															? tx.amountCents
 															: -tx.amountCents,
 													)}
-												</td>
-											</tr>
+												</TableCell>
+											</TableRow>
 										))}
-									</tbody>
-								</table>
+									</TableBody>
+								</Table>
 								{result.transactions.length > 50 && (
 									<p className="p-2 text-muted-foreground text-xs">
 										… and {result.transactions.length - 50} more
