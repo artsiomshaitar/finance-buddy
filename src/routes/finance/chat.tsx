@@ -49,7 +49,7 @@ function Messages({ messages }: { messages: FinanceChatMessages }) {
 					className={`mb-4 ${message.role === "user" ? "text-right" : ""}`}
 				>
 					{message.role === "user" && (
-						<div className="inline-block rounded-lg bg-muted px-3 py-2 text-left max-w-[85%]">
+						<div className="inline-block rounded-none bg-muted px-3 py-2 text-left max-w-[85%]">
 							{getTextContent(message.parts)}
 						</div>
 					)}
@@ -60,7 +60,7 @@ function Messages({ messages }: { messages: FinanceChatMessages }) {
 									return (
 										<div
 											key={`text-${message.id}-${idx}`}
-											className="rounded-lg border bg-card px-3 py-2 whitespace-pre-wrap"
+											className="rounded-none border bg-card px-3 py-2 whitespace-pre-wrap"
 										>
 											{part.content}
 										</div>

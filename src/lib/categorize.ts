@@ -19,7 +19,7 @@ type TransactionRow = {
 export interface CategorizationResult {
 	categoryId: string | null;
 	confidence: number;
-	source: "rule" | "ml" | "manual";
+	source: "rule" | "ml" | "manual" | "llm";
 	explanation: string[];
 }
 

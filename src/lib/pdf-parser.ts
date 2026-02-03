@@ -17,20 +17,15 @@ function hashTransactionId(input: string): string {
 	return createHash("sha256").update(input, "utf8").digest("hex").slice(0, 24);
 }
 
-function generateTransactionId(match: RegExpExecArray): string {
+function generateTransactionIdTwoAmount(
+	match: RegExpExecArray,
+	amountCol: string,
+): string {
 	const mm = match[1];
 	const dd = match[2];
 	const desc = match[4];
-	const amt = match[5];
-	const input = `${mm}-${dd}-${amt}-${desc.trim()}`;
+	const input = `${mm}-${dd}-${amountCol}-${desc.trim()}`;
 	return hashTransactionId(input);
-}
-
-function detectTransactionType(
-	_text: string,
-	_index: number,
-): "debit" | "credit" {
-	return "debit";
 }
 
 export function detectBank(text: string): "bofa" | "capital_one" | "unknown" {
@@ -49,40 +44,54 @@ function generateTransactionIdSingle(match: RegExpExecArray): string {
 }
 
 const BoA_TWO_AMOUNT_RE =
-	/(0[1-9]|1[0-2])\/(0[1-9]|[12]\d|3[01])(?:\/(\d{2}))?\s+(.+?)\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})/g;
+	/(0[1-9]|1[0-2])\/(0[1-9]|[12]\d|3[01])(?:\/(\d{2}))?\s+([\s\S]+?)\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})/g;
 const BoA_SINGLE_AMOUNT_RE =
-	/(0[1-9]|1[0-2])\/(0[1-9]|[12]\d|3[01])(?:\/(\d{2}))?\s+(.+?)\s+(-?[\d,]+\.\d{2})(?=\s*\n|\s*$)/gm;
+	/(0[1-9]|1[0-2])\/(0[1-9]|[12]\d|3[01])(?:\/(\d{2}))?\s+([\s\S]+?)\s+(-?[\d,]+\.\d{2})(?=\s*\n|\s*$|\s+\D)/gm;
 
 function parseBoATransactions(text: string): ParsedTransaction[] {
 	const transactions: ParsedTransaction[] = [];
 	let match = BoA_TWO_AMOUNT_RE.exec(text);
 	while (match !== null) {
 		const yy = match[3];
-		transactions.push({
-			date: normalizeDateFromGroups(match[1], match[2], yy),
-			description: match[4].trim(),
-			amountCents: Math.round(parseFloat(match[5].replace(/,/g, "")) * 100),
-			externalId: generateTransactionId(match),
-			type: detectTransactionType(text, match.index),
-		});
+		const date = normalizeDateFromGroups(match[1], match[2], yy);
+		const description = match[4].replace(/\s+/g, " ").trim();
+		const col1Str = match[5].replace(/,/g, "");
+		const col2Str = match[6].replace(/,/g, "");
+		const col1Cents = Math.round(parseFloat(col1Str) * 100);
+		const col2Cents = Math.round(parseFloat(col2Str) * 100);
+		const isDeposit = col1Cents !== 0;
+		const amountCents = isDeposit ? col1Cents : col2Cents;
+		const amountStr = isDeposit ? col1Str : col2Str;
+		if (amountCents !== 0) {
+			transactions.push({
+				date,
+				description,
+				amountCents,
+				externalId: generateTransactionIdTwoAmount(match, amountStr),
+				type: isDeposit ? "credit" : "debit",
+			});
+		}
 		match = BoA_TWO_AMOUNT_RE.exec(text);
 	}
-	const seen = new Set(transactions.map((t) => `${t.date}:${t.description}`));
+	const seen = new Set(
+		transactions.map((t) => `${t.date}:${t.description}:${t.amountCents}`),
+	);
 	match = BoA_SINGLE_AMOUNT_RE.exec(text);
 	while (match !== null) {
 		const yy = match[3];
-		const key = `${normalizeDateFromGroups(match[1], match[2], yy)}:${match[4].trim()}`;
+		const amountStr = match[5].replace(/,/g, "");
+		const amountCents = Math.round(parseFloat(amountStr) * 100);
+		const desc = match[4].replace(/\s+/g, " ").trim();
+		const key = `${normalizeDateFromGroups(match[1], match[2], yy)}:${desc}:${Math.abs(amountCents)}`;
 		if (!seen.has(key)) {
 			seen.add(key);
-			const amountStr = match[5].replace(/,/g, "");
-			const amountCents = Math.round(parseFloat(amountStr) * 100);
-			const isCredit = amountStr.startsWith("-");
+			const isDebit = amountStr.startsWith("-");
 			transactions.push({
 				date: normalizeDateFromGroups(match[1], match[2], yy),
-				description: match[4].trim(),
+				description: desc,
 				amountCents: Math.abs(amountCents),
 				externalId: generateTransactionIdSingle(match),
-				type: isCredit ? "credit" : "debit",
+				type: isDebit ? "debit" : "credit",
 			});
 		}
 		match = BoA_SINGLE_AMOUNT_RE.exec(text);
@@ -139,7 +148,7 @@ function extractPageTextInReadingOrder(content: {
 
 export async function parseStatement(
 	pdfBuffer: ArrayBuffer,
-	options?: { includeRawText?: boolean },
+	options?: { includeRawText?: boolean; rawTextLimit?: number },
 ): Promise<{
 	bank: "bofa" | "capital_one" | "unknown";
 	transactions: ParsedTransaction[];
@@ -170,8 +179,9 @@ export async function parseStatement(
 		needsReview: ParsedTransaction[];
 		rawText?: string;
 	} = { bank, transactions, needsReview };
-	if (options?.includeRawText) {
-		result.rawText = fullText.slice(0, 3000);
+	if (options?.includeRawText ?? options?.rawTextLimit != null) {
+		const limit = options.rawTextLimit ?? 3000;
+		result.rawText = limit > 0 ? fullText.slice(0, limit) : fullText;
 	}
 	return result;
 }
