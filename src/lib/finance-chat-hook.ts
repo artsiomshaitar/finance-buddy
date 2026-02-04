@@ -6,15 +6,15 @@ import {
 	useChat,
 } from "@tanstack/ai-react";
 import {
-	aggregateSpendingDef,
+	aggregateDef,
 	analyzePatternsDef,
-	compareSpendingDef,
+	compareDef,
 	queryTransactionsDef,
-} from "@/lib/tools/finance";
+} from "@/lib/tools/finance-defs";
 
 const queryTransactionsClient = queryTransactionsDef.client(async () => []);
-const aggregateSpendingClient = aggregateSpendingDef.client(async () => []);
-const compareSpendingClient = compareSpendingDef.client(async () => ({
+const aggregateClient = aggregateDef.client(async () => []);
+const compareClient = compareDef.client(async () => ({
 	periodATotalCents: 0,
 	periodBTotalCents: 0,
 	changePercent: 0,
@@ -29,8 +29,8 @@ const chatOptions = createChatClientOptions({
 	connection: fetchServerSentEvents("/api/chat"),
 	tools: clientTools(
 		queryTransactionsClient,
-		aggregateSpendingClient,
-		compareSpendingClient,
+		aggregateClient,
+		compareClient,
 		analyzePatternsClient,
 	),
 });

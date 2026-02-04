@@ -1,4 +1,3 @@
-import { toolDefinition } from "@tanstack/ai";
 import {
 	and,
 	between,
@@ -10,139 +9,20 @@ import {
 	or,
 	sql,
 } from "drizzle-orm";
-import { z } from "zod";
+import type { z } from "zod";
 import { db } from "@/db";
 import { categories, transactions } from "@/db/schema";
 import { parseRelativeDates } from "@/lib/date-utils";
-
-const dateFilterSchema = z.object({
-	startDate: z
-		.string()
-		.optional()
-		.describe("Start date (YYYY-MM-DD) or relative: '3 weeks ago'"),
-	endDate: z
-		.string()
-		.optional()
-		.describe("End date (YYYY-MM-DD) or relative: 'today'"),
-});
-
-const queryTransactionsInputSchema = z.object({
-	...dateFilterSchema.shape,
-	categories: z
-		.array(z.string())
-		.optional()
-		.describe("Filter by category names"),
-	merchantSearch: z
-		.string()
-		.optional()
-		.describe("Search merchant names (partial match)"),
-	minAmountCents: z.number().optional(),
-	maxAmountCents: z.number().optional(),
-	limit: z.number().default(50),
-});
-export const queryTransactionsDef = toolDefinition({
-	name: "query_transactions",
-	description:
-		"Query user transactions with filters. Use for listing, searching, or finding specific transactions.",
-	inputSchema: queryTransactionsInputSchema,
-	outputSchema: z.array(
-		z.object({
-			id: z.string(),
-			date: z.string(),
-			name: z.string(),
-			merchantName: z.string().nullable(),
-			amountCents: z.number(),
-			categoryName: z.string().nullable(),
-		}),
-	),
-});
-
-const aggregateSpendingInputSchema = z.object({
-	...dateFilterSchema.shape,
-	groupBy: z.enum(["category", "merchant", "month", "week"]),
-	metrics: z
-		.array(z.enum(["total", "average", "count", "min", "max"]))
-		.default(["total"]),
-	comparePeriod: z
-		.boolean()
-		.optional()
-		.describe("Include comparison with previous period"),
-});
-export const aggregateSpendingDef = toolDefinition({
-	name: "aggregate_spending",
-	description:
-		"Calculate spending totals, averages, or counts. Use for 'how much', 'average', or 'total' questions.",
-	inputSchema: aggregateSpendingInputSchema,
-	outputSchema: z.array(
-		z.object({
-			group: z.string(),
-			totalCents: z.number(),
-			averageCents: z.number().optional(),
-			count: z.number(),
-			previousPeriodCents: z.number().optional(),
-			changePercent: z.number().optional(),
-		}),
-	),
-});
-
-const compareSpendingInputSchema = z.object({
-	periodA: z.object({ start: z.string(), end: z.string() }),
-	periodB: z.object({ start: z.string(), end: z.string() }),
-	groupBy: z.enum(["category", "merchant"]).optional(),
-	highlightThreshold: z
-		.number()
-		.default(10)
-		.describe("% change threshold to highlight"),
-});
-export const compareSpendingDef = toolDefinition({
-	name: "compare_spending",
-	description:
-		"Compare spending between two time periods. Use for before/after, year-over-year analysis.",
-	inputSchema: compareSpendingInputSchema,
-	outputSchema: z.object({
-		periodATotalCents: z.number(),
-		periodBTotalCents: z.number(),
-		changePercent: z.number(),
-		breakdown: z.array(
-			z.object({
-				group: z.string(),
-				periodACents: z.number(),
-				periodBCents: z.number(),
-				changePercent: z.number(),
-				highlighted: z.boolean(),
-			}),
-		),
-	}),
-});
-
-const analyzePatternsInputSchema = z.object({
-	analysisType: z.enum([
-		"anomalies",
-		"trends",
-		"recurring",
-		"savings_opportunities",
-	]),
-	...dateFilterSchema.shape,
-	categories: z.array(z.string()).optional(),
-});
-export const analyzePatternsDef = toolDefinition({
-	name: "analyze_patterns",
-	description:
-		"Analyze transaction patterns for anomalies, trends, or savings opportunities.",
-	inputSchema: analyzePatternsInputSchema,
-	outputSchema: z.object({
-		findings: z.array(
-			z.object({
-				type: z.string(),
-				description: z.string(),
-				transactions: z.array(z.string()).optional(),
-				amountCents: z.number().optional(),
-				confidence: z.number(),
-			}),
-		),
-		recommendations: z.array(z.string()),
-	}),
-});
+import {
+	aggregateDef,
+	type aggregateInputSchema,
+	analyzePatternsDef,
+	type analyzePatternsInputSchema,
+	compareDef,
+	type compareInputSchema,
+	queryTransactionsDef,
+	type queryTransactionsInputSchema,
+} from "@/lib/tools/finance-defs";
 
 async function getCategoryIdByName(name: string): Promise<string | null> {
 	const rows = await db
@@ -153,18 +33,32 @@ async function getCategoryIdByName(name: string): Promise<string | null> {
 	return rows[0]?.id ?? null;
 }
 
+function amountFilter(
+	type: "income" | "spending" | "all",
+): ReturnType<typeof gte> | ReturnType<typeof lte> | undefined {
+	if (type === "income") return gte(transactions.amountCents, 1);
+	if (type === "spending") return lte(transactions.amountCents, 0);
+	return undefined;
+}
+
+const spendingCategoryFilter = or(
+	sql`${transactions.categoryId} is null`,
+	eq(categories.excludeFromSpending, false),
+);
+
 export const queryTransactions = queryTransactionsDef.server(async (input) => {
 	const i = input as z.infer<typeof queryTransactionsInputSchema>;
 	const { start, end } = parseRelativeDates(i.startDate, i.endDate);
 	const conditions = [
 		between(transactions.date, start, end),
+		amountFilter(i.type ?? "all"),
 		i.minAmountCents != null
 			? gte(transactions.amountCents, i.minAmountCents)
 			: undefined,
 		i.maxAmountCents != null
 			? lte(transactions.amountCents, i.maxAmountCents)
 			: undefined,
-	];
+	].filter(Boolean);
 	if (i.categories?.length) {
 		const ids = await Promise.all(
 			i.categories.map((n: string) => getCategoryIdByName(n)),
@@ -207,36 +101,67 @@ export const queryTransactions = queryTransactionsDef.server(async (input) => {
 	return result;
 });
 
-const spendingCategoryFilter = or(
-	sql`${transactions.categoryId} is null`,
-	eq(categories.excludeFromSpending, false),
-);
-
-export const aggregateSpending = aggregateSpendingDef.server(async (input) => {
-	const i = input as z.infer<typeof aggregateSpendingInputSchema>;
+export const aggregate = aggregateDef.server(async (input) => {
+	const i = input as z.infer<typeof aggregateInputSchema>;
 	const { start, end } = parseRelativeDates(i.startDate, i.endDate);
-	const debitFilter = lte(transactions.amountCents, 0);
+	const amtFilter = amountFilter(i.type);
+	const categoryFilter =
+		i.type === "spending" ? and(amtFilter, spendingCategoryFilter) : amtFilter;
+	const baseConditions = [
+		categoryFilter,
+		between(transactions.date, start, end),
+	];
+	if (i.categories?.length) {
+		const ids = await Promise.all(
+			i.categories.map((n: string) => getCategoryIdByName(n)),
+		);
+		const validIds = ids.filter(
+			(id: string | null): id is string => id != null,
+		);
+		if (validIds.length) {
+			baseConditions.push(inArray(transactions.categoryId, validIds));
+		}
+	}
+	if (i.merchantSearch) {
+		const q = `%${i.merchantSearch.toLowerCase()}%`;
+		baseConditions.push(
+			or(
+				sql`lower(coalesce(${transactions.merchantName}, '')) like ${q}`,
+				sql`lower(${transactions.name}) like ${q}`,
+			) ?? sql`1=0`,
+		);
+	}
+	const conditions = and(...baseConditions);
+	if (i.groupBy === "none") {
+		const [row] = await db
+			.select({
+				total: sql<number>`coalesce(sum(case when ${transactions.amountCents} < 0 then -${transactions.amountCents} else ${transactions.amountCents} end), 0)`,
+				count: sql<number>`count(*)`,
+			})
+			.from(transactions)
+			.leftJoin(categories, eq(transactions.categoryId, categories.id))
+			.where(conditions);
+		const totalCents = Number(row?.total ?? 0);
+		const count = Number(row?.count ?? 0);
+		return [{ group: "total", totalCents, count }];
+	}
 	const groupCol =
 		i.groupBy === "category"
 			? transactions.categoryId
 			: i.groupBy === "merchant"
 				? transactions.merchantName
-				: transactions.date;
+				: i.groupBy === "month"
+					? sql<string>`substr(${transactions.date}, 1, 7)`
+					: transactions.date;
 	const rows = await db
 		.select({
 			group: groupCol,
-			total: sql<number>`coalesce(sum(${transactions.amountCents}), 0)`,
+			total: sql<number>`coalesce(sum(case when ${transactions.amountCents} < 0 then -${transactions.amountCents} else ${transactions.amountCents} end), 0)`,
 			count: sql<number>`count(*)`,
 		})
 		.from(transactions)
 		.leftJoin(categories, eq(transactions.categoryId, categories.id))
-		.where(
-			and(
-				debitFilter,
-				spendingCategoryFilter,
-				between(transactions.date, start, end),
-			),
-		)
+		.where(conditions)
 		.groupBy(groupCol);
 	const categoryNames =
 		i.groupBy === "category" ? await db.select().from(categories) : [];
@@ -244,16 +169,21 @@ export const aggregateSpending = aggregateSpendingDef.server(async (input) => {
 	return rows.map((r) => ({
 		group:
 			i.groupBy === "category"
-				? (nameMap[r.group ?? ""] ?? r.group ?? "Uncategorized")
-				: (r.group ?? "Unknown"),
-		totalCents: Math.abs(Number(r.total)),
+				? (nameMap[String(r.group ?? "")] ?? r.group ?? "Uncategorized")
+				: String(r.group ?? "Unknown"),
+		totalCents: Number(r.total),
 		count: Number(r.count),
 	}));
 });
 
-export const compareSpending = compareSpendingDef.server(async (input) => {
-	const i = input as z.infer<typeof compareSpendingInputSchema>;
-	const debitFilter = lte(transactions.amountCents, 0);
+export const compare = compareDef.server(async (input) => {
+	const i = input as z.infer<typeof compareInputSchema>;
+	const amtFilter =
+		i.type === "income"
+			? gte(transactions.amountCents, 1)
+			: lte(transactions.amountCents, 0);
+	const categoryFilter =
+		i.type === "spending" ? and(amtFilter, spendingCategoryFilter) : amtFilter;
 	const [periodARows] = await db
 		.select({
 			total: sql<number>`coalesce(sum(${transactions.amountCents}), 0)`,
@@ -262,8 +192,7 @@ export const compareSpending = compareSpendingDef.server(async (input) => {
 		.leftJoin(categories, eq(transactions.categoryId, categories.id))
 		.where(
 			and(
-				debitFilter,
-				spendingCategoryFilter,
+				categoryFilter,
 				between(transactions.date, i.periodA.start, i.periodA.end),
 			),
 		);
@@ -275,8 +204,7 @@ export const compareSpending = compareSpendingDef.server(async (input) => {
 		.leftJoin(categories, eq(transactions.categoryId, categories.id))
 		.where(
 			and(
-				debitFilter,
-				spendingCategoryFilter,
+				categoryFilter,
 				between(transactions.date, i.periodB.start, i.periodB.end),
 			),
 		);
@@ -297,7 +225,11 @@ export const compareSpending = compareSpendingDef.server(async (input) => {
 export const analyzePatterns = analyzePatternsDef.server(async (input) => {
 	const i = input as z.infer<typeof analyzePatternsInputSchema>;
 	const { start, end } = parseRelativeDates(i.startDate, i.endDate);
-	const debitFilter = lte(transactions.amountCents, 0);
+	const amtFilter = amountFilter(i.type ?? "spending");
+	const categoryFilter =
+		(i.type ?? "spending") === "spending"
+			? and(amtFilter, spendingCategoryFilter)
+			: amtFilter;
 	const rows = await db
 		.select({
 			id: transactions.id,
@@ -307,16 +239,14 @@ export const analyzePatterns = analyzePatternsDef.server(async (input) => {
 		})
 		.from(transactions)
 		.leftJoin(categories, eq(transactions.categoryId, categories.id))
-		.where(
-			and(
-				debitFilter,
-				spendingCategoryFilter,
-				between(transactions.date, start, end),
-			),
-		)
+		.where(and(categoryFilter, between(transactions.date, start, end)))
 		.orderBy(desc(transactions.date))
 		.limit(100);
-	const total = rows.reduce((s, r) => s + Math.abs(r.amountCents), 0);
+	const total = rows.reduce(
+		(s, r) =>
+			s + (i.type === "income" ? r.amountCents : Math.abs(r.amountCents)),
+		0,
+	);
 	const avg = rows.length ? total / rows.length : 0;
 	const findings: Array<{
 		type: string;
@@ -340,11 +270,14 @@ export const analyzePatterns = analyzePatternsDef.server(async (input) => {
 			}
 		}
 	}
+	const kind = i.type ?? "spending";
 	return {
 		findings,
 		recommendations:
 			findings.length > 0
 				? ["Review unusual transactions for accuracy."]
-				: ["Spending looks consistent for the period."],
+				: [
+						`${kind === "income" ? "Income" : "Spending"} looks consistent for the period.`,
+					],
 	};
 });

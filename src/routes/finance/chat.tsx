@@ -134,7 +134,7 @@ function FinanceChatPage() {
 	const { messages, sendMessage, isLoading, stop } = useFinanceChat();
 
 	return (
-		<div className="flex flex-col h-[calc(100vh-80px)] bg-background font-mono">
+		<div className="flex flex-col h-[calc(100vh-80px)] max-w-4xl mx-auto w-full px-4 pb-6 bg-background font-mono">
 			<div className="border-b px-4 py-2">
 				<h1 className="text-lg font-semibold">Finance Chat</h1>
 				<p className="text-xs text-muted-foreground">
