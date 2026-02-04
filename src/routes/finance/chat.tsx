@@ -49,12 +49,12 @@ function Messages({ messages }: { messages: FinanceChatMessages }) {
 					className={`mb-4 ${message.role === "user" ? "text-right" : ""}`}
 				>
 					{message.role === "user" && (
-						<div className="inline-block rounded-none bg-muted px-3 py-2 text-left max-w-[85%]">
+						<div className="inline-block rounded-none bg-muted px-3 py-2 text-left max-w-2/3">
 							{getTextContent(message.parts)}
 						</div>
 					)}
 					{message.role === "assistant" && (
-						<div className="space-y-2 text-left">
+						<div className="space-y-2 text-left max-w-2/3">
 							{message.parts.map((part, idx) => {
 								if (part.type === "text" && part.content) {
 									return (
@@ -134,7 +134,8 @@ function FinanceChatPage() {
 	const { messages, sendMessage, isLoading, stop } = useFinanceChat();
 
 	return (
-		<div className="flex flex-col h-[calc(100vh-80px)] max-w-4xl mx-auto w-full px-4 pb-6 bg-background font-mono">
+		<div className="grid grid-rows-[auto_1fr_auto] h-[calc(100vh-80px)] max-w-4xl mx-auto w-full px-4 pb-6 bg-background font-mono">
+			{/* Header */}
 			<div className="border-b px-4 py-2">
 				<h1 className="text-lg font-semibold">Finance Chat</h1>
 				<p className="text-xs text-muted-foreground">
@@ -143,14 +144,6 @@ function FinanceChatPage() {
 			</div>
 			<Messages messages={messages} />
 			<div className="border-t p-4 bg-muted/30">
-				{isLoading && (
-					<div className="flex justify-center mb-2">
-						<Button variant="outline" size="sm" onClick={stop}>
-							<StopIcon className="h-4 w-4 mr-1" />
-							Stop
-						</Button>
-					</div>
-				)}
 				<form
 					onSubmit={(e) => {
 						e.preventDefault();
@@ -168,13 +161,15 @@ function FinanceChatPage() {
 						disabled={isLoading}
 						className="flex-1 font-mono"
 					/>
-					<Button type="submit" disabled={!input.trim() || isLoading}>
-						{isLoading ? (
-							<CircleNotchIcon className="h-4 w-4 animate-spin" />
-						) : (
-							<PaperPlaneTiltIcon className="h-4 w-4" />
-						)}
-					</Button>
+					{isLoading ? (
+						<Button variant="outline" size="sm" onClick={stop}>
+							<StopIcon className="size-4" />
+						</Button>
+					) : (
+						<Button type="submit" disabled={!input.trim() || isLoading}>
+							<PaperPlaneTiltIcon className="size-4" />
+						</Button>
+					)}
 				</form>
 			</div>
 		</div>
