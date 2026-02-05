@@ -13,7 +13,6 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as FinanceUploadRouteImport } from './routes/finance/upload'
 import { Route as FinanceChatRouteImport } from './routes/finance/chat'
-import { Route as ApiTransactionsRouteImport } from './routes/api.transactions'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 
 const DashboardRoute = DashboardRouteImport.update({
@@ -36,11 +35,6 @@ const FinanceChatRoute = FinanceChatRouteImport.update({
   path: '/finance/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiTransactionsRoute = ApiTransactionsRouteImport.update({
-  id: '/api/transactions',
-  path: '/api/transactions',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiChatRoute = ApiChatRouteImport.update({
   id: '/api/chat',
   path: '/api/chat',
@@ -51,7 +45,6 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/api/chat': typeof ApiChatRoute
-  '/api/transactions': typeof ApiTransactionsRoute
   '/finance/chat': typeof FinanceChatRoute
   '/finance/upload': typeof FinanceUploadRoute
 }
@@ -59,7 +52,6 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/api/chat': typeof ApiChatRoute
-  '/api/transactions': typeof ApiTransactionsRoute
   '/finance/chat': typeof FinanceChatRoute
   '/finance/upload': typeof FinanceUploadRoute
 }
@@ -68,7 +60,6 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/api/chat': typeof ApiChatRoute
-  '/api/transactions': typeof ApiTransactionsRoute
   '/finance/chat': typeof FinanceChatRoute
   '/finance/upload': typeof FinanceUploadRoute
 }
@@ -78,23 +69,15 @@ export interface FileRouteTypes {
     | '/'
     | '/dashboard'
     | '/api/chat'
-    | '/api/transactions'
     | '/finance/chat'
     | '/finance/upload'
   fileRoutesByTo: FileRoutesByTo
-  to:
-    | '/'
-    | '/dashboard'
-    | '/api/chat'
-    | '/api/transactions'
-    | '/finance/chat'
-    | '/finance/upload'
+  to: '/' | '/dashboard' | '/api/chat' | '/finance/chat' | '/finance/upload'
   id:
     | '__root__'
     | '/'
     | '/dashboard'
     | '/api/chat'
-    | '/api/transactions'
     | '/finance/chat'
     | '/finance/upload'
   fileRoutesById: FileRoutesById
@@ -103,7 +86,6 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRoute
   ApiChatRoute: typeof ApiChatRoute
-  ApiTransactionsRoute: typeof ApiTransactionsRoute
   FinanceChatRoute: typeof FinanceChatRoute
   FinanceUploadRoute: typeof FinanceUploadRoute
 }
@@ -138,13 +120,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FinanceChatRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/transactions': {
-      id: '/api/transactions'
-      path: '/api/transactions'
-      fullPath: '/api/transactions'
-      preLoaderRoute: typeof ApiTransactionsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/chat': {
       id: '/api/chat'
       path: '/api/chat'
@@ -159,7 +134,6 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRoute,
   ApiChatRoute: ApiChatRoute,
-  ApiTransactionsRoute: ApiTransactionsRoute,
   FinanceChatRoute: FinanceChatRoute,
   FinanceUploadRoute: FinanceUploadRoute,
 }
