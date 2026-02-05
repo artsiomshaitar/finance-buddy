@@ -167,9 +167,7 @@ async function* convertOpenAIStreamToAGUI(
 				runId: c.id,
 				error: c.error,
 			};
-			continue;
 		}
-		continue;
 	}
 }
 

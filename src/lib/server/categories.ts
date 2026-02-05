@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, isNotNull } from "drizzle-orm";
 import { db } from "@/db";
-import { categories, categoryRules } from "@/db/schema";
+import { categories, categoryRules, transactions } from "@/db/schema";
 import { seedCategoriesIfEmpty } from "@/lib/seed-categories";
 
 export const getCategories = createServerFn({ method: "GET" }).handler(
@@ -17,11 +17,24 @@ export const getCategories = createServerFn({ method: "GET" }).handler(
 	},
 );
 
+export type CategoryForSettingsRow = typeof categories.$inferSelect & {
+	hasTransactions: boolean;
+};
+
 export const getCategoriesForSettings = createServerFn({
 	method: "GET",
-}).handler(async () => {
+}).handler(async (): Promise<CategoryForSettingsRow[]> => {
 	await seedCategoriesIfEmpty();
-	return db.select().from(categories);
+	const rows = await db.select().from(categories);
+	const used = await db
+		.selectDistinct({ categoryId: transactions.categoryId })
+		.from(transactions)
+		.where(isNotNull(transactions.categoryId));
+	const usedSet = new Set(used.map((r) => r.categoryId).filter(Boolean));
+	return rows.map((r) => ({
+		...r,
+		hasTransactions: usedSet.has(r.id),
+	}));
 });
 
 export type UpdateCategoryInput = {
@@ -170,4 +183,64 @@ export const deleteCategoryRule = createServerFn({ method: "POST" })
 	})
 	.handler(async ({ data }) => {
 		await db.delete(categoryRules).where(eq(categoryRules.id, data.id));
+	});
+
+export const deleteCategory = createServerFn({ method: "POST" })
+	.inputValidator((input: { id: string }) => {
+		if (!input?.id || typeof input.id !== "string")
+			throw new Error("id required");
+		return input;
+	})
+	.handler(async ({ data }) => {
+		const id = data.id;
+		const [row] = await db
+			.select()
+			.from(categories)
+			.where(eq(categories.id, id));
+		if (!row) throw new Error("Category not found");
+		if (row.isSystem) throw new Error("System categories cannot be deleted");
+		const [tx] = await db
+			.select({ id: transactions.id })
+			.from(transactions)
+			.where(eq(transactions.categoryId, id))
+			.limit(1);
+		if (tx) throw new Error("Category is used by transactions");
+		await db.delete(categoryRules).where(eq(categoryRules.categoryId, id));
+		await db.delete(categories).where(eq(categories.id, id));
+	});
+
+export type CreateCategoryInput = {
+	name: string;
+	icon?: string | null;
+	color?: string | null;
+	isIncome?: boolean;
+	excludeFromSpending?: boolean;
+	budgetCents?: number | null;
+};
+
+export const createCategory = createServerFn({ method: "POST" })
+	.inputValidator((input: CreateCategoryInput) => {
+		const { name } = input;
+		if (!name || typeof name !== "string" || name.trim() === "")
+			throw new Error("name must be non-empty string");
+		return input;
+	})
+	.handler(async ({ data }) => {
+		const id = crypto.randomUUID();
+		await db.insert(categories).values({
+			id,
+			name: data.name.trim(),
+			icon: data.icon ?? null,
+			color: data.color ?? null,
+			isSystem: false,
+			isIncome: data.isIncome ?? false,
+			excludeFromSpending: data.excludeFromSpending ?? false,
+			budgetCents: data.budgetCents ?? null,
+		});
+		const [row] = await db
+			.select()
+			.from(categories)
+			.where(eq(categories.id, id));
+		if (!row) throw new Error("Category not created");
+		return row;
 	});

@@ -390,9 +390,13 @@ function FinanceUploadPage() {
 								</colgroup>
 								<TableHeader className="sticky top-0 z-10 bg-background">
 									<TableRow>
-										<TableHead className="w-32 font-mono text-xs">Date</TableHead>
+										<TableHead className="w-32 font-mono text-xs">
+											Date
+										</TableHead>
 										<TableHead className="w-[90px]">Status</TableHead>
-										<TableHead className="w-[280px] min-w-[280px]">Description</TableHead>
+										<TableHead className="w-[280px] min-w-[280px]">
+											Description
+										</TableHead>
 										<TableHead className="w-24 text-right">Amount</TableHead>
 										<TableHead className="w-[140px]">Category</TableHead>
 										<TableHead className="w-[80px] text-center">

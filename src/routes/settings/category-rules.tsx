@@ -229,10 +229,7 @@ function SettingsCategoryRulesPage() {
 					</AlertDialogHeader>
 					<AlertDialogFooter>
 						<AlertDialogCancel>Cancel</AlertDialogCancel>
-						<AlertDialogAction
-							variant="destructive"
-							onClick={confirmDelete}
-						>
+						<AlertDialogAction variant="destructive" onClick={confirmDelete}>
 							Delete
 						</AlertDialogAction>
 					</AlertDialogFooter>

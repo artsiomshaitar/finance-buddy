@@ -15,8 +15,13 @@ export type GetTransactionsInput = {
 export const getTransactions = createServerFn({ method: "GET" })
 	.inputValidator((input: GetTransactionsInput) => input ?? {})
 	.handler(async ({ data }: { data: GetTransactionsInput }) => {
-		const { startDate, endDate, accountId, categoryId, limit: rawLimit } =
-			data ?? {};
+		const {
+			startDate,
+			endDate,
+			accountId,
+			categoryId,
+			limit: rawLimit,
+		} = data ?? {};
 		const limit = Math.min(Number(rawLimit) || 50, 100);
 		const { start, end } = parseRelativeDates(startDate, endDate);
 		const conditions = [
