@@ -9,12 +9,20 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SettingsIndexRouteImport } from './routes/settings/index'
+import { Route as SettingsCategoriesRouteImport } from './routes/settings/categories'
 import { Route as FinanceUploadRouteImport } from './routes/finance/upload'
 import { Route as FinanceChatRouteImport } from './routes/finance/chat'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -24,6 +32,16 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsIndexRoute = SettingsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsCategoriesRoute = SettingsCategoriesRouteImport.update({
+  id: '/categories',
+  path: '/categories',
+  getParentRoute: () => SettingsRoute,
 } as any)
 const FinanceUploadRoute = FinanceUploadRouteImport.update({
   id: '/finance/upload',
@@ -44,9 +62,12 @@ const ApiChatRoute = ApiChatRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/settings': typeof SettingsRouteWithChildren
   '/api/chat': typeof ApiChatRoute
   '/finance/chat': typeof FinanceChatRoute
   '/finance/upload': typeof FinanceUploadRoute
+  '/settings/categories': typeof SettingsCategoriesRoute
+  '/settings/': typeof SettingsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -54,37 +75,56 @@ export interface FileRoutesByTo {
   '/api/chat': typeof ApiChatRoute
   '/finance/chat': typeof FinanceChatRoute
   '/finance/upload': typeof FinanceUploadRoute
+  '/settings/categories': typeof SettingsCategoriesRoute
+  '/settings': typeof SettingsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/settings': typeof SettingsRouteWithChildren
   '/api/chat': typeof ApiChatRoute
   '/finance/chat': typeof FinanceChatRoute
   '/finance/upload': typeof FinanceUploadRoute
+  '/settings/categories': typeof SettingsCategoriesRoute
+  '/settings/': typeof SettingsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/dashboard'
+    | '/settings'
     | '/api/chat'
     | '/finance/chat'
     | '/finance/upload'
+    | '/settings/categories'
+    | '/settings/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/dashboard' | '/api/chat' | '/finance/chat' | '/finance/upload'
-  id:
-    | '__root__'
+  to:
     | '/'
     | '/dashboard'
     | '/api/chat'
     | '/finance/chat'
     | '/finance/upload'
+    | '/settings/categories'
+    | '/settings'
+  id:
+    | '__root__'
+    | '/'
+    | '/dashboard'
+    | '/settings'
+    | '/api/chat'
+    | '/finance/chat'
+    | '/finance/upload'
+    | '/settings/categories'
+    | '/settings/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRoute
+  SettingsRoute: typeof SettingsRouteWithChildren
   ApiChatRoute: typeof ApiChatRoute
   FinanceChatRoute: typeof FinanceChatRoute
   FinanceUploadRoute: typeof FinanceUploadRoute
@@ -92,6 +132,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/dashboard': {
       id: '/dashboard'
       path: '/dashboard'
@@ -105,6 +152,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/settings/': {
+      id: '/settings/'
+      path: '/'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof SettingsIndexRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/categories': {
+      id: '/settings/categories'
+      path: '/categories'
+      fullPath: '/settings/categories'
+      preLoaderRoute: typeof SettingsCategoriesRouteImport
+      parentRoute: typeof SettingsRoute
     }
     '/finance/upload': {
       id: '/finance/upload'
@@ -130,9 +191,24 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface SettingsRouteChildren {
+  SettingsCategoriesRoute: typeof SettingsCategoriesRoute
+  SettingsIndexRoute: typeof SettingsIndexRoute
+}
+
+const SettingsRouteChildren: SettingsRouteChildren = {
+  SettingsCategoriesRoute: SettingsCategoriesRoute,
+  SettingsIndexRoute: SettingsIndexRoute,
+}
+
+const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
+  SettingsRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRoute,
+  SettingsRoute: SettingsRouteWithChildren,
   ApiChatRoute: ApiChatRoute,
   FinanceChatRoute: FinanceChatRoute,
   FinanceUploadRoute: FinanceUploadRoute,

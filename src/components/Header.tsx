@@ -2,6 +2,7 @@ import {
 	ChartPieIcon,
 	ChatCircleIcon,
 	DatabaseIcon,
+	GearIcon,
 	ListIcon,
 	XIcon,
 } from "@phosphor-icons/react";
@@ -80,6 +81,18 @@ export default function Header() {
 					>
 						<DatabaseIcon size={20} />
 						<span className="font-medium">Upload Statement</span>
+					</Link>
+					<Link
+						to="/settings"
+						onClick={() => setIsOpen(false)}
+						className="flex items-center gap-3 p-3 rounded-none hover:bg-accent hover:text-accent-foreground transition-colors mb-2"
+						activeProps={{
+							className:
+								"flex items-center gap-3 p-3 rounded-none bg-primary text-primary-foreground hover:bg-primary/90 transition-colors mb-2",
+						}}
+					>
+						<GearIcon size={20} />
+						<span className="font-medium">Settings</span>
 					</Link>
 				</nav>
 			</aside>
