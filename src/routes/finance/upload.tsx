@@ -5,8 +5,10 @@ import {
 	UploadSimpleIcon,
 } from "@phosphor-icons/react";
 import { useDebouncedValue } from "@tanstack/react-pacer";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useCallback, useEffect, useId, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,7 +30,6 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import {
-	Table,
 	TableBody,
 	TableCell,
 	TableHead,
@@ -53,8 +54,6 @@ import { uploadFile } from "@/lib/server/upload-file";
 
 const MAX_PDF_FILES = 10;
 
-type AccountRow = Awaited<ReturnType<typeof getAccounts>>[number];
-
 type RuleMapEntry = {
 	categoryId: string;
 	matchPattern: string;
@@ -67,13 +66,11 @@ function FinanceUploadPage() {
 	const [error, setError] = useState<string | null>(null);
 	const [dragOver, setDragOver] = useState(false);
 	const [accountId, setAccountId] = useState<string | null>(null);
-	const [accountsList, setAccountsList] = useState<AccountRow[]>([]);
 	const [showNewAccountForm, setShowNewAccountForm] = useState(false);
 	const [newAccountName, setNewAccountName] = useState("");
 	const [newAccountInstitution, setNewAccountInstitution] = useState("bofa");
 	const [newAccountType, setNewAccountType] = useState("checking");
 	const [newAccountMask, setNewAccountMask] = useState("");
-	const [creatingAccount, setCreatingAccount] = useState(false);
 	const [preparedList, setPreparedList] = useState<
 		PreparedTransaction[] | null
 	>(null);
@@ -81,9 +78,6 @@ function FinanceUploadPage() {
 		imported: number;
 	} | null>(null);
 	const [loadingImport, setLoadingImport] = useState(false);
-	const [categoriesList, setCategoriesList] = useState<
-		{ id: string; name: string; icon: string | null }[]
-	>([]);
 	const [categoryOverrides, setCategoryOverrides] = useState<
 		Record<string, string>
 	>({});
@@ -104,14 +98,35 @@ function FinanceUploadPage() {
 	const [debouncedQuery] = useDebouncedValue(searchQuery, { wait: 300 });
 	const fileInputId = useId();
 	const accountFormId = useId();
+	const queryClient = useQueryClient();
+	const tableScrollRef = useRef<HTMLDivElement>(null);
 
-	useEffect(() => {
-		if (files.length > 0) getAccounts().then(setAccountsList);
-	}, [files.length]);
+	const { data: accountsList = [] } = useQuery({
+		queryKey: ["accounts"],
+		queryFn: getAccounts,
+		enabled: files.length > 0,
+	});
 
-	useEffect(() => {
-		if (preparedList?.length) getCategories().then(setCategoriesList);
-	}, [preparedList?.length]);
+	const { data: categoriesList = [] } = useQuery({
+		queryKey: ["categories"],
+		queryFn: getCategories,
+		enabled: (preparedList?.length ?? 0) > 0,
+	});
+
+	const createAccountMutation = useMutation({
+		mutationFn: (payload: CreateAccountInput) =>
+			createAccount({ data: { data: payload } }),
+		onSuccess: (account) => {
+			setAccountId(account.id);
+			setShowNewAccountForm(false);
+			setNewAccountName("");
+			setNewAccountMask("");
+			queryClient.invalidateQueries({ queryKey: ["accounts"] });
+		},
+		onError: (err) => {
+			setError(err instanceof Error ? err.message : String(err));
+		},
+	});
 
 	useEffect(() => {
 		if (!preparedList?.length) return;
@@ -219,28 +234,16 @@ function FinanceUploadPage() {
 		setShowNewAccountForm(true);
 	};
 
-	const handleCreateAccount = async (e: React.FormEvent) => {
+	const handleCreateAccount = (e: React.FormEvent) => {
 		e.preventDefault();
 		if (!newAccountName.trim()) return;
-		setCreatingAccount(true);
 		setError(null);
-		try {
-			const payload: CreateAccountInput = {
-				name: newAccountName.trim(),
-				institution: newAccountInstitution,
-				accountType: newAccountType,
-				mask: newAccountMask.trim() || undefined,
-			};
-			const account = await createAccount({ data: { data: payload } });
-			setAccountId(account.id);
-			setShowNewAccountForm(false);
-			setNewAccountName("");
-			setNewAccountMask("");
-		} catch (err) {
-			setError(err instanceof Error ? err.message : String(err));
-		} finally {
-			setCreatingAccount(false);
-		}
+		createAccountMutation.mutate({
+			name: newAccountName.trim(),
+			institution: newAccountInstitution,
+			accountType: newAccountType,
+			mask: newAccountMask.trim() || undefined,
+		});
 	};
 
 	const autoTxs =
@@ -273,6 +276,13 @@ function FinanceUploadPage() {
 		return `${tx.date}-${tx.description}-${tx.amountCents}`;
 	}
 
+	const rowVirtualizer = useVirtualizer({
+		count: filteredList.length,
+		getScrollElement: () => tableScrollRef.current,
+		estimateSize: () => 80,
+		overscan: 5,
+	});
+
 	const handleImport = async () => {
 		if (!preparedList || !accountId) return;
 		setLoadingImport(true);
@@ -295,6 +305,7 @@ function FinanceUploadPage() {
 					},
 				});
 			}
+			queryClient.invalidateQueries({ queryKey: ["categories"] });
 			const merged = preparedList.map((tx) => {
 				const key = txKey(tx);
 				const rid = assignment[key];
@@ -360,160 +371,201 @@ function FinanceUploadPage() {
 					onChange={(e) => setSearchQuery(e.target.value)}
 					className="mb-4 font-mono text-sm max-w-md"
 				/>
-				<div className="border overflow-hidden max-h-[70vh] overflow-y-auto">
-					<Table>
-						<TableHeader>
-							<TableRow>
-								<TableHead className="font-mono text-xs">Date</TableHead>
-								<TableHead className="w-[90px]">Status</TableHead>
-								<TableHead className="min-w-[280px]">Description</TableHead>
-								<TableHead className="text-right">Amount</TableHead>
-								<TableHead>Category</TableHead>
-								<TableHead className="w-[80px] text-center">
-									Save rule
-								</TableHead>
-								<TableHead className="w-[100px]"></TableHead>
-							</TableRow>
-						</TableHeader>
-						<TableBody>
-							{filteredList.length === 0 ? (
-								<TableRow>
-									<TableCell
-										colSpan={7}
-										className="text-center text-muted-foreground text-sm py-8"
-									>
-										No transactions match your search.
-									</TableCell>
-								</TableRow>
-							) : (
-								filteredList.map((tx) => {
-								const key = txKey(tx);
-								const ruleId = assignment[key];
-								const rule = ruleId ? ruleMap[ruleId] : null;
-								const rawValue =
-									categoryOverrides[key] ??
-									rule?.categoryId ??
-									tx.categoryId ??
-									"";
-								const selectValue = rawValue || NO_CATEGORY_VALUE;
-								return (
-									<TableRow key={tx.externalId ?? key}>
-										<TableCell className="font-mono text-xs whitespace-nowrap">
-											{tx.date}
-										</TableCell>
-										<TableCell className="w-[90px]">
-											{tx.confidence >= CONFIDENCE_THRESHOLDS.AUTO_ACCEPT &&
-											tx.source !== "ml" ? (
-												<Badge variant="secondary">Auto</Badge>
-											) : tx.source === "ml" ||
-												tx.confidence >= CONFIDENCE_THRESHOLDS.SUGGEST ? (
-												<Badge variant="outline">Suggested</Badge>
-											) : null}
-										</TableCell>
-										<TableCell className="min-w-[280px] font-mono text-xs whitespace-normal">
-											{tx.description}
-										</TableCell>
-										<TableCell className="text-right tabular-nums whitespace-nowrap">
-											{formatCents(
-												tx.type === "credit" ? tx.amountCents : -tx.amountCents,
-											)}
-										</TableCell>
-										<TableCell>
-											<Select
-												value={selectValue}
-												onValueChange={(v) =>
-													setCategoryOverrides((prev) => ({
-														...prev,
-														[key]: v === NO_CATEGORY_VALUE ? "" : v,
-													}))
-												}
-											>
-												<SelectTrigger className="h-8 text-xs w-[140px]">
-													<SelectValue placeholder="—" />
-												</SelectTrigger>
-												<SelectContent>
-													<SelectItem value={NO_CATEGORY_VALUE}>—</SelectItem>
-													{categoriesList.map((c) => (
-														<SelectItem key={c.id} value={c.id}>
-															<span className="inline-flex items-center gap-1.5">
-																{c.icon && <span>{c.icon}</span>}
-																<span>{c.name}</span>
-															</span>
-														</SelectItem>
-													))}
-												</SelectContent>
-											</Select>
-										</TableCell>
-										<TableCell className="text-center">
-											{ruleId != null ? (
-												<label className="flex items-center justify-center gap-1 text-xs cursor-pointer">
-													<input
-														type="checkbox"
-														checked={saveRuleForRule[ruleId] ?? false}
-														onChange={() =>
-															setSaveRuleForRule((prev) => ({
-																...prev,
-																[ruleId]: !(prev[ruleId] ?? false),
-															}))
-														}
-														className="border-input"
-													/>
-													Save rule
-												</label>
-											) : (
-												<span className="text-muted-foreground">—</span>
-											)}
-										</TableCell>
-										<TableCell>
-											<Button
-												variant="ghost"
-												size="sm"
-												className="text-xs"
-												onClick={() => {
-													const rid = assignment[key];
-													if (rid == null) {
-														const newRid = crypto.randomUUID();
-														const initialRule: RuleMapEntry = {
-															categoryId:
-																categoryOverrides[key] ?? tx.categoryId ?? "",
-															matchPattern:
-																tx.suggestedMatchPattern?.trim() ||
-																tx.description.slice(0, 40),
-															matchType: "contains",
-														};
-														setRuleMap((prev) => ({
-															...prev,
-															[newRid]: initialRule,
-														}));
-														setAssignment((prev) => ({
-															...prev,
-															[key]: newRid,
-														}));
-														setCreateRulePattern(initialRule.matchPattern);
-														setCreateRuleCategoryId(
-															initialRule.categoryId || "",
-														);
-														setCreateRuleMatchType(initialRule.matchType);
-													} else {
-														const r = ruleMap[rid];
-														if (r) {
-															setCreateRulePattern(r.matchPattern);
-															setCreateRuleCategoryId(r.categoryId || "");
-															setCreateRuleMatchType(r.matchType);
-														}
-													}
-													setCreateRuleFor(key);
+				<div className="border overflow-hidden text-xs font-mono">
+					{filteredList.length === 0 ? (
+						<div className="flex items-center justify-center text-muted-foreground text-sm py-8 border-b">
+							No transactions match your search.
+						</div>
+					) : (
+						<div ref={tableScrollRef} className="overflow-auto max-h-[70vh]">
+							<table className="w-full caption-bottom text-xs table-fixed font-mono">
+								<colgroup>
+									<col className="w-32" />
+									<col className="w-[90px]" />
+									<col className="min-w-[280px]" />
+									<col className="w-24" />
+									<col className="w-[140px]" />
+									<col className="w-[80px]" />
+									<col className="w-[100px]" />
+								</colgroup>
+								<TableHeader className="sticky top-0 z-10 bg-background">
+									<TableRow>
+										<TableHead className="w-32 font-mono text-xs">Date</TableHead>
+										<TableHead className="w-[90px]">Status</TableHead>
+										<TableHead className="w-[280px] min-w-[280px]">Description</TableHead>
+										<TableHead className="w-24 text-right">Amount</TableHead>
+										<TableHead className="w-[140px]">Category</TableHead>
+										<TableHead className="w-[80px] text-center">
+											Save rule
+										</TableHead>
+										<TableHead className="w-[100px]" />
+									</TableRow>
+								</TableHeader>
+								<TableBody
+									style={{
+										position: "relative",
+										minHeight: rowVirtualizer.getTotalSize(),
+									}}
+								>
+									<tr>
+										<td
+											colSpan={7}
+											style={{
+												height: rowVirtualizer.getTotalSize(),
+												padding: 0,
+												border: "none",
+												lineHeight: 0,
+											}}
+										/>
+									</tr>
+									{rowVirtualizer.getVirtualItems().map((virtualRow) => {
+										const tx = filteredList[virtualRow.index];
+										const key = txKey(tx);
+										const ruleId = assignment[key];
+										const rule = ruleId ? ruleMap[ruleId] : null;
+										const rawValue =
+											categoryOverrides[key] ??
+											rule?.categoryId ??
+											tx.categoryId ??
+											"";
+										const selectValue = rawValue || NO_CATEGORY_VALUE;
+										return (
+											<TableRow
+												key={tx.externalId ?? key}
+												style={{
+													position: "absolute",
+													top: 0,
+													left: 0,
+													width: "100%",
+													height: virtualRow.size,
+													transform: `translateY(${virtualRow.start}px)`,
+													display: "table",
+													tableLayout: "fixed",
 												}}
 											>
-												{ruleId != null ? "Edit rule" : "Create rule"}
-											</Button>
-										</TableCell>
-									</TableRow>
-								);
-							})
-							)}
-						</TableBody>
-					</Table>
+												<TableCell className="w-32 font-mono text-xs whitespace-nowrap">
+													{tx.date}
+												</TableCell>
+												<TableCell className="w-[90px]">
+													{tx.confidence >= CONFIDENCE_THRESHOLDS.AUTO_ACCEPT &&
+													tx.source !== "ml" ? (
+														<Badge variant="secondary">Auto</Badge>
+													) : tx.source === "ml" ||
+														tx.confidence >= CONFIDENCE_THRESHOLDS.SUGGEST ? (
+														<Badge variant="outline">Suggested</Badge>
+													) : null}
+												</TableCell>
+												<TableCell className="w-[280px] min-w-[280px] whitespace-normal font-mono text-xs">
+													{tx.description}
+												</TableCell>
+												<TableCell className="w-24 text-right tabular-nums whitespace-nowrap">
+													{formatCents(
+														tx.type === "credit"
+															? tx.amountCents
+															: -tx.amountCents,
+													)}
+												</TableCell>
+												<TableCell className="w-[140px]">
+													<Select
+														value={selectValue}
+														onValueChange={(v) =>
+															setCategoryOverrides((prev) => ({
+																...prev,
+																[key]: v === NO_CATEGORY_VALUE ? "" : v,
+															}))
+														}
+													>
+														<SelectTrigger className="h-8 w-[140px]">
+															<SelectValue placeholder="—" />
+														</SelectTrigger>
+														<SelectContent className="font-mono text-xs">
+															<SelectItem value={NO_CATEGORY_VALUE}>
+																—
+															</SelectItem>
+															{categoriesList.map((c) => (
+																<SelectItem key={c.id} value={c.id}>
+																	<span className="inline-flex items-center gap-1.5">
+																		{c.icon && <span>{c.icon}</span>}
+																		<span>{c.name}</span>
+																	</span>
+																</SelectItem>
+															))}
+														</SelectContent>
+													</Select>
+												</TableCell>
+												<TableCell className="w-[80px] text-center">
+													{ruleId != null ? (
+														<label className="flex items-center justify-center gap-1 text-xs cursor-pointer">
+															<input
+																type="checkbox"
+																checked={saveRuleForRule[ruleId] ?? false}
+																onChange={() =>
+																	setSaveRuleForRule((prev) => ({
+																		...prev,
+																		[ruleId]: !(prev[ruleId] ?? false),
+																	}))
+																}
+																className="border-input"
+															/>
+															Save rule
+														</label>
+													) : (
+														<span className="text-muted-foreground">—</span>
+													)}
+												</TableCell>
+												<TableCell className="w-[100px]">
+													<Button
+														variant="ghost"
+														size="sm"
+														className="text-xs"
+														onClick={() => {
+															const rid = assignment[key];
+															if (rid == null) {
+																const newRid = crypto.randomUUID();
+																const initialRule: RuleMapEntry = {
+																	categoryId:
+																		categoryOverrides[key] ??
+																		tx.categoryId ??
+																		"",
+																	matchPattern:
+																		tx.suggestedMatchPattern?.trim() ||
+																		tx.description.slice(0, 40),
+																	matchType: "contains",
+																};
+																setRuleMap((prev) => ({
+																	...prev,
+																	[newRid]: initialRule,
+																}));
+																setAssignment((prev) => ({
+																	...prev,
+																	[key]: newRid,
+																}));
+																setCreateRulePattern(initialRule.matchPattern);
+																setCreateRuleCategoryId(
+																	initialRule.categoryId || "",
+																);
+																setCreateRuleMatchType(initialRule.matchType);
+															} else {
+																const r = ruleMap[rid];
+																if (r) {
+																	setCreateRulePattern(r.matchPattern);
+																	setCreateRuleCategoryId(r.categoryId || "");
+																	setCreateRuleMatchType(r.matchType);
+																}
+															}
+															setCreateRuleFor(key);
+														}}
+													>
+														{ruleId != null ? "Edit rule" : "Create rule"}
+													</Button>
+												</TableCell>
+											</TableRow>
+										);
+									})}
+								</TableBody>
+							</table>
+						</div>
+					)}
 				</div>
 				{createRuleFor && (
 					<Card className="mt-4 p-4">
@@ -858,8 +910,11 @@ function FinanceUploadPage() {
 											/>
 										</div>
 										<div className="flex gap-2">
-											<Button type="submit" disabled={creatingAccount}>
-												{creatingAccount ? (
+											<Button
+												type="submit"
+												disabled={createAccountMutation.isPending}
+											>
+												{createAccountMutation.isPending ? (
 													<>
 														<CircleNotchIcon className="h-4 w-4 mr-2 animate-spin" />
 														Creating…
