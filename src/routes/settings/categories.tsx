@@ -134,9 +134,9 @@ function SettingsCategoriesPage() {
 					if (row.color !== original.color) patch.color = row.color ?? null;
 					if (!original.isSystem) {
 						if (row.isIncome !== original.isIncome)
-							patch.isIncome = row.isIncome;
+							patch.isIncome = row.isIncome ?? undefined;
 						if (row.excludeFromSpending !== original.excludeFromSpending)
-							patch.excludeFromSpending = row.excludeFromSpending;
+							patch.excludeFromSpending = row.excludeFromSpending ?? undefined;
 						if (row.budgetCents !== original.budgetCents)
 							patch.budgetCents = row.budgetCents ?? null;
 					}

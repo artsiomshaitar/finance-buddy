@@ -67,7 +67,7 @@ export async function categorizeTransaction(
 ): Promise<CategorizationResult> {
 	const isDeeler = tx.name.includes("DEELER");
 
-	const logIfDeeler = (...args: any[]) => {
+	const logIfDeeler = (...args: unknown[]) => {
 		if (isDeeler) {
 			console.log(...args);
 		}

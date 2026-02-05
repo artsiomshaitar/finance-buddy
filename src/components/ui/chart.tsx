@@ -67,21 +67,14 @@ function ChartContainer({
 	);
 }
 
-const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
+function buildChartStyleCss(id: string, config: ChartConfig): string {
 	const colorConfig = Object.entries(config).filter(
-		([, config]) => config.theme || config.color,
+		([, c]) => c.theme || c.color,
 	);
-
-	if (!colorConfig.length) {
-		return null;
-	}
-
-	return (
-		<style
-			dangerouslySetInnerHTML={{
-				__html: Object.entries(THEMES)
-					.map(
-						([theme, prefix]) => `
+	if (!colorConfig.length) return "";
+	return Object.entries(THEMES)
+		.map(
+			([theme, prefix]) => `
 ${prefix} [data-chart=${id}] {
 ${colorConfig
 	.map(([key, itemConfig]) => {
@@ -93,8 +86,17 @@ ${colorConfig
 	.join("\n")}
 }
 `,
-					)
-					.join("\n"),
+		)
+		.join("\n");
+}
+
+const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
+	const css = buildChartStyleCss(id, config);
+	if (!css) return null;
+	return (
+		<style
+			ref={(el) => {
+				if (el) el.textContent = css;
 			}}
 		/>
 	);

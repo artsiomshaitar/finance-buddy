@@ -12,6 +12,8 @@ This document defines general rules for agents and contributors when working on 
 
 - **For adding new components** use `bunx --bun shadcn@latest add <component name>`.
 
+- **After changes, run checks.** It is mandatory to run `bun run check --write` and `bun run typecheck` to verify there are no linter or TypeScript errors in the code.
+
 ### UI/UX
 
 - **Match a terminal UI approach.** Prefer a terminal/CLI-inspired aesthetic: monospace or terminal-style fonts where appropriate, high-contrast text, clear hierarchy, minimal decoration, and a focus on data and structure over flashy visuals. Think dashboards and tools like htop, ledger, or terminal-based finance UIs.
@@ -24,16 +26,17 @@ This document defines general rules for agents and contributors when working on 
   - TanStack Query for server data
   - Derived values during render (compute from props/other state)
   - Event handlers for user-driven side effects
-  Use `useEffect` only when you need real external sync (e.g. DOM, subscriptions, timers). Use `useState` only when the value is not derivable and is not server state.
+    Use `useEffect` only when you need real external sync (e.g. DOM, subscriptions, timers). Use `useState` only when the value is not derivable and is not server state.
 
 ---
 
 ## Summary
 
-| Area           | Rule                                                                 |
-|----------------|----------------------------------------------------------------------|
-| Package manager | Always use `bun`                                                    |
-| New components  | `bunx --bun shadcn@latest add <component name>`                    |
-| UI/UX          | Terminal UI style: monospace/terminal feel, high contrast, data-first |
-| Data fetching  | TanStack Query; no `fetch` in `useEffect`                           |
-| State/effects  | Avoid `useEffect` and `useState` unless necessary                   |
+| Area            | Rule                                                                  |
+| --------------- | --------------------------------------------------------------------- |
+| Package manager | Always use `bun`                                                      |
+| New components  | `bunx --bun shadcn@latest add <component name>`                       |
+| After changes   | Run `bun run check --write` and `bun run typecheck`                   |
+| UI/UX           | Terminal UI style: monospace/terminal feel, high contrast, data-first |
+| Data fetching   | TanStack Query; no `fetch` in `useEffect`                             |
+| State/effects   | Avoid `useEffect` and `useState` unless necessary                     |

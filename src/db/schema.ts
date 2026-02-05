@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+	foreignKey,
 	index,
 	integer,
 	sqliteTable,
@@ -20,21 +21,29 @@ export const accounts = sqliteTable("accounts", {
 	),
 });
 
-// @ts-expect-error circular reference
-export const categories = sqliteTable("categories", {
-	id: text("id").primaryKey(),
-	name: text("name").notNull(),
-	icon: text("icon"),
-	color: text("color"),
-	// @ts-expect-error self-reference
-	parentId: text("parent_id").references(() => categories.id),
-	isSystem: integer("is_system", { mode: "boolean" }).default(false),
-	isIncome: integer("is_income", { mode: "boolean" }).default(false),
-	excludeFromSpending: integer("exclude_from_spending", {
-		mode: "boolean",
-	}).default(false),
-	budgetCents: integer("budget_cents"),
-});
+export const categories = sqliteTable(
+	"categories",
+	{
+		id: text("id").primaryKey(),
+		name: text("name").notNull(),
+		icon: text("icon"),
+		color: text("color"),
+		parentId: text("parent_id"),
+		isSystem: integer("is_system", { mode: "boolean" }).default(false),
+		isIncome: integer("is_income", { mode: "boolean" }).default(false),
+		excludeFromSpending: integer("exclude_from_spending", {
+			mode: "boolean",
+		}).default(false),
+		budgetCents: integer("budget_cents"),
+	},
+	(table) => [
+		foreignKey({
+			columns: [table.parentId],
+			foreignColumns: [table.id],
+			name: "categories_parent_id_fkey",
+		}),
+	],
+);
 
 export const transactions = sqliteTable(
 	"transactions",

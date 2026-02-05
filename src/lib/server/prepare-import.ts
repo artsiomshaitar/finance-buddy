@@ -2,11 +2,10 @@ import { createHash } from "node:crypto";
 import { createServerFn } from "@tanstack/react-start";
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { categories, categoryRules, transactions } from "@/db/schema";
+import { categoryRules, transactions } from "@/db/schema";
 import { categorizeTransaction } from "@/lib/categorize";
 import type { ParsedTransaction } from "@/lib/pdf-parser";
 import { seedCategoriesIfEmpty } from "@/lib/seed-categories";
-import { suggestCategoriesWithLlm } from "@/lib/server/llm-categorize";
 
 export type PreparedTransaction = ParsedTransaction & {
 	categoryId: string | null;

@@ -296,12 +296,10 @@ function FinanceUploadPage() {
 				if (!entry?.categoryId?.trim() || !entry.matchPattern.trim()) continue;
 				await createCategoryRule({
 					data: {
-						data: {
-							categoryId: entry.categoryId,
-							matchPattern: entry.matchPattern,
-							matchField: "name",
-							matchType: entry.matchType,
-						},
+						categoryId: entry.categoryId,
+						matchPattern: entry.matchPattern,
+						matchField: "name",
+						matchType: entry.matchType,
 					},
 				});
 			}
