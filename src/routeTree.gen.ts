@@ -13,6 +13,7 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
+import { Route as SettingsCategoryRulesRouteImport } from './routes/settings/category-rules'
 import { Route as SettingsCategoriesRouteImport } from './routes/settings/categories'
 import { Route as FinanceUploadRouteImport } from './routes/finance/upload'
 import { Route as FinanceChatRouteImport } from './routes/finance/chat'
@@ -36,6 +37,11 @@ const IndexRoute = IndexRouteImport.update({
 const SettingsIndexRoute = SettingsIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsCategoryRulesRoute = SettingsCategoryRulesRouteImport.update({
+  id: '/category-rules',
+  path: '/category-rules',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsCategoriesRoute = SettingsCategoriesRouteImport.update({
@@ -67,6 +73,7 @@ export interface FileRoutesByFullPath {
   '/finance/chat': typeof FinanceChatRoute
   '/finance/upload': typeof FinanceUploadRoute
   '/settings/categories': typeof SettingsCategoriesRoute
+  '/settings/category-rules': typeof SettingsCategoryRulesRoute
   '/settings/': typeof SettingsIndexRoute
 }
 export interface FileRoutesByTo {
@@ -76,6 +83,7 @@ export interface FileRoutesByTo {
   '/finance/chat': typeof FinanceChatRoute
   '/finance/upload': typeof FinanceUploadRoute
   '/settings/categories': typeof SettingsCategoriesRoute
+  '/settings/category-rules': typeof SettingsCategoryRulesRoute
   '/settings': typeof SettingsIndexRoute
 }
 export interface FileRoutesById {
@@ -87,6 +95,7 @@ export interface FileRoutesById {
   '/finance/chat': typeof FinanceChatRoute
   '/finance/upload': typeof FinanceUploadRoute
   '/settings/categories': typeof SettingsCategoriesRoute
+  '/settings/category-rules': typeof SettingsCategoryRulesRoute
   '/settings/': typeof SettingsIndexRoute
 }
 export interface FileRouteTypes {
@@ -99,6 +108,7 @@ export interface FileRouteTypes {
     | '/finance/chat'
     | '/finance/upload'
     | '/settings/categories'
+    | '/settings/category-rules'
     | '/settings/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -108,6 +118,7 @@ export interface FileRouteTypes {
     | '/finance/chat'
     | '/finance/upload'
     | '/settings/categories'
+    | '/settings/category-rules'
     | '/settings'
   id:
     | '__root__'
@@ -118,6 +129,7 @@ export interface FileRouteTypes {
     | '/finance/chat'
     | '/finance/upload'
     | '/settings/categories'
+    | '/settings/category-rules'
     | '/settings/'
   fileRoutesById: FileRoutesById
 }
@@ -160,6 +172,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsIndexRouteImport
       parentRoute: typeof SettingsRoute
     }
+    '/settings/category-rules': {
+      id: '/settings/category-rules'
+      path: '/category-rules'
+      fullPath: '/settings/category-rules'
+      preLoaderRoute: typeof SettingsCategoryRulesRouteImport
+      parentRoute: typeof SettingsRoute
+    }
     '/settings/categories': {
       id: '/settings/categories'
       path: '/categories'
@@ -193,11 +212,13 @@ declare module '@tanstack/react-router' {
 
 interface SettingsRouteChildren {
   SettingsCategoriesRoute: typeof SettingsCategoriesRoute
+  SettingsCategoryRulesRoute: typeof SettingsCategoryRulesRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
 }
 
 const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsCategoriesRoute: SettingsCategoriesRoute,
+  SettingsCategoryRulesRoute: SettingsCategoryRulesRoute,
   SettingsIndexRoute: SettingsIndexRoute,
 }
 
