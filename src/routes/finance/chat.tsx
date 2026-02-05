@@ -94,7 +94,7 @@ function Messages({ messages }: { messages: FinanceChatMessages }) {
 													<span className="font-medium">{part.name}</span>
 												</div>
 												{Object.keys(argsObj).length > 0 && (
-													<pre className="mt-2 text-xs overflow-x-auto bg-muted/50 p-2 rounded">
+													<pre className="mt-2 text-xs overflow-x-auto bg-muted/50 p-2">
 														{JSON.stringify(argsObj, null, 2)}
 													</pre>
 												)}
@@ -103,7 +103,7 @@ function Messages({ messages }: { messages: FinanceChatMessages }) {
 														<summary className="cursor-pointer text-xs text-muted-foreground">
 															View result
 														</summary>
-														<pre className="mt-1 text-xs overflow-x-auto bg-muted/50 p-2 rounded max-h-40 overflow-y-auto">
+														<pre className="mt-1 text-xs overflow-x-auto bg-muted/50 p-2  max-h-40 overflow-y-auto">
 															{typeof part.output === "string"
 																? part.output
 																: JSON.stringify(part.output, null, 2)}

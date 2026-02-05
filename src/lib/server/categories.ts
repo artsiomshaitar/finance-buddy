@@ -8,7 +8,7 @@ export const getCategories = createServerFn({ method: "GET" }).handler(
 	async () => {
 		await seedCategoriesIfEmpty();
 		return db
-			.select({ id: categories.id, name: categories.name })
+			.select({ id: categories.id, name: categories.name, icon: categories.icon })
 			.from(categories);
 	},
 );

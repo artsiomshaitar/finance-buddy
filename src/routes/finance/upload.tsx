@@ -4,6 +4,7 @@ import {
 	PlusIcon,
 	UploadSimpleIcon,
 } from "@phosphor-icons/react";
+import { useDebouncedValue } from "@tanstack/react-pacer";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useId, useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -81,7 +82,7 @@ function FinanceUploadPage() {
 	} | null>(null);
 	const [loadingImport, setLoadingImport] = useState(false);
 	const [categoriesList, setCategoriesList] = useState<
-		{ id: string; name: string }[]
+		{ id: string; name: string; icon: string | null }[]
 	>([]);
 	const [categoryOverrides, setCategoryOverrides] = useState<
 		Record<string, string>
@@ -99,6 +100,8 @@ function FinanceUploadPage() {
 	const [saveRuleForRule, setSaveRuleForRule] = useState<
 		Record<string, boolean>
 	>({});
+	const [searchQuery, setSearchQuery] = useState("");
+	const [debouncedQuery] = useDebouncedValue(searchQuery, { wait: 300 });
 	const fileInputId = useId();
 	const accountFormId = useId();
 
@@ -254,6 +257,16 @@ function FinanceUploadPage() {
 		preparedList?.filter((t) => t.confidence < CONFIDENCE_THRESHOLDS.SUGGEST) ??
 		[];
 
+	const filteredList = !preparedList
+		? []
+		: debouncedQuery.trim() === ""
+			? preparedList
+			: preparedList.filter((tx) =>
+					tx.description
+						.toLowerCase()
+						.includes(debouncedQuery.trim().toLowerCase()),
+				);
+
 	const NO_CATEGORY_VALUE = "__none__";
 
 	function txKey(tx: PreparedTransaction): string {
@@ -341,7 +354,13 @@ function FinanceUploadPage() {
 						<Badge variant="destructive">{manualTxs.length} need review</Badge>
 					)}
 				</div>
-				<div className="rounded border overflow-hidden max-h-[70vh] overflow-y-auto">
+				<Input
+					placeholder="Search by name"
+					value={searchQuery}
+					onChange={(e) => setSearchQuery(e.target.value)}
+					className="mb-4 font-mono text-sm max-w-md"
+				/>
+				<div className="border overflow-hidden max-h-[70vh] overflow-y-auto">
 					<Table>
 						<TableHeader>
 							<TableRow>
@@ -357,7 +376,17 @@ function FinanceUploadPage() {
 							</TableRow>
 						</TableHeader>
 						<TableBody>
-							{preparedList.map((tx) => {
+							{filteredList.length === 0 ? (
+								<TableRow>
+									<TableCell
+										colSpan={7}
+										className="text-center text-muted-foreground text-sm py-8"
+									>
+										No transactions match your search.
+									</TableCell>
+								</TableRow>
+							) : (
+								filteredList.map((tx) => {
 								const key = txKey(tx);
 								const ruleId = assignment[key];
 								const rule = ruleId ? ruleMap[ruleId] : null;
@@ -406,7 +435,10 @@ function FinanceUploadPage() {
 													<SelectItem value={NO_CATEGORY_VALUE}>—</SelectItem>
 													{categoriesList.map((c) => (
 														<SelectItem key={c.id} value={c.id}>
-															{c.name}
+															<span className="inline-flex items-center gap-1.5">
+																{c.icon && <span>{c.icon}</span>}
+																<span>{c.name}</span>
+															</span>
 														</SelectItem>
 													))}
 												</SelectContent>
@@ -424,7 +456,7 @@ function FinanceUploadPage() {
 																[ruleId]: !(prev[ruleId] ?? false),
 															}))
 														}
-														className="rounded border-input"
+														className="border-input"
 													/>
 													Save rule
 												</label>
@@ -478,7 +510,8 @@ function FinanceUploadPage() {
 										</TableCell>
 									</TableRow>
 								);
-							})}
+							})
+							)}
 						</TableBody>
 					</Table>
 				</div>
@@ -540,7 +573,10 @@ function FinanceUploadPage() {
 									<SelectContent>
 										{categoriesList.map((c) => (
 											<SelectItem key={c.id} value={c.id}>
-												{c.name}
+												<span className="inline-flex items-center gap-1.5">
+													{c.icon && <span>{c.icon}</span>}
+													<span>{c.name}</span>
+												</span>
 											</SelectItem>
 										))}
 									</SelectContent>
