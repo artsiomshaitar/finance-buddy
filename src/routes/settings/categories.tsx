@@ -25,10 +25,17 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
 	getCategoriesForSettings,
 	type UpdateCategoryInput,
 	updateCategory as updateCategoryFn,
 } from "@/lib/server/categories";
+import { Info } from "@phosphor-icons/react";
 
 export const Route = createFileRoute("/settings/categories")({
 	component: SettingsCategoriesPage,
@@ -101,22 +108,58 @@ function SettingsCategoriesPage() {
 	const rows = editRows.length > 0 ? editRows : serverData;
 
 	return (
-		<div className="max-w-7xl mx-auto">
-			<div className="overflow-x-auto border border-border">
-				<Table className="table-auto">
-					<TableHeader>
-						<TableRow>
-							<TableHead className="w-min">Icon</TableHead>
-							<TableHead className="w-min">Name</TableHead>
-							<TableHead className="text-center w-min px-4">
-								Is income
-							</TableHead>
-							<TableHead className="text-center w-min px-4">
-								Exclude from spending
-							</TableHead>
-							<TableHead className="text-center w-min pr-4">System</TableHead>
-						</TableRow>
-					</TableHeader>
+		<TooltipProvider>
+			<div className="max-w-7xl mx-auto">
+				<div className="overflow-x-auto border border-border">
+					<Table className="table-auto">
+						<TableHeader>
+							<TableRow>
+								<TableHead className="w-min">Icon</TableHead>
+								<TableHead className="w-min">Name</TableHead>
+								<TableHead className="text-center w-min px-4">
+									<span className="inline-flex items-center gap-1">
+										Is income
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<button
+													type="button"
+													className="inline-flex text-muted-foreground hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+													aria-label="Explanation for Is income"
+												>
+													<Info size={14} weight="regular" />
+												</button>
+											</TooltipTrigger>
+											<TooltipContent>
+												When enabled, transactions in this category are counted
+												as income (e.g. salary, refunds) rather than expenses.
+											</TooltipContent>
+										</Tooltip>
+									</span>
+								</TableHead>
+								<TableHead className="text-center w-min px-4">
+									<span className="inline-flex items-center gap-1">
+										Exclude from spending
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<button
+													type="button"
+													className="inline-flex text-muted-foreground hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+													aria-label="Explanation for Exclude from spending"
+												>
+													<Info size={14} weight="regular" />
+												</button>
+											</TooltipTrigger>
+											<TooltipContent>
+												When enabled, transactions in this category are not
+												included in spending totals (e.g. transfers between
+												accounts).
+											</TooltipContent>
+										</Tooltip>
+									</span>
+								</TableHead>
+								<TableHead className="text-center w-min pr-4">System</TableHead>
+							</TableRow>
+						</TableHeader>
 					<TableBody className="">
 						{rows.map((row) => (
 							<TableRow key={row.id}>
@@ -202,5 +245,6 @@ function SettingsCategoriesPage() {
 				</Button>
 			</div>
 		</div>
+		</TooltipProvider>
 	);
 }

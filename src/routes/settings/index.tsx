@@ -6,7 +6,7 @@ export const Route = createFileRoute("/settings/")({
 
 function SettingsIndexPage() {
 	return (
-		<div>
+		<div className="max-w-2xl">
 			<ul className="space-y-2">
 				<li>
 					<Link

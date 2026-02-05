@@ -10,6 +10,8 @@ This document defines general rules for agents and contributors when working on 
 
 - **Always use `bun`.** Use `bun` for installing dependencies (`bun add`, `bun install`), running scripts (`bun run`), and executing tools. Do not use npm, pnpm, or yarn.
 
+- **For adding new components** use `bunx --bun shadcn@latest add <component name>`.
+
 ### UI/UX
 
 - **Match a terminal UI approach.** Prefer a terminal/CLI-inspired aesthetic: monospace or terminal-style fonts where appropriate, high-contrast text, clear hierarchy, minimal decoration, and a focus on data and structure over flashy visuals. Think dashboards and tools like htop, ledger, or terminal-based finance UIs.
@@ -31,6 +33,7 @@ This document defines general rules for agents and contributors when working on 
 | Area           | Rule                                                                 |
 |----------------|----------------------------------------------------------------------|
 | Package manager | Always use `bun`                                                    |
+| New components  | `bunx --bun shadcn@latest add <component name>`                    |
 | UI/UX          | Terminal UI style: monospace/terminal feel, high contrast, data-first |
 | Data fetching  | TanStack Query; no `fetch` in `useEffect`                           |
 | State/effects  | Avoid `useEffect` and `useState` unless necessary                   |
